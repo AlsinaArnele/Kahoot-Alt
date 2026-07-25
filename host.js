@@ -100,12 +100,12 @@
       state.muted = true;
       state.audio.setMuted(true);
       els.audioUnlock.classList.add('hidden');
-      els.muteBtn.textContent = '🔇 Muted';
+      els.muteBtn.textContent = 'Muted';
     });
     els.muteBtn.addEventListener('click', function(){
       state.muted = !state.muted;
       state.audio.setMuted(state.muted);
-      els.muteBtn.textContent = state.muted ? '🔇 Muted' : '🔊 Audio';
+      els.muteBtn.textContent = state.muted ? 'Muted' : 'Audio';
       if (!state.muted) playMusicForStatus(true);
     });
     els.refreshBtn.addEventListener('click', loadSnapshot);
