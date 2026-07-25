@@ -1,4 +1,3 @@
-
 (function(){
   const BOOT = window.QA_BOOTSTRAP || {};
   const state = {
@@ -13,6 +12,7 @@
     lastAnswerTotal: 0,
     lastStatus: '',
     confettiFired: false,
+    finishedRendered: false, // Ensures podium animation only plays once per finish
     muted: false,
     loading: false,
     snapshotQueued: false
@@ -69,7 +69,7 @@
           </form>
         </section>
         <aside class="card">
-          <h2 style="margin-top:0">Player link</h2>
+          <h2 style="margin-top:0; color:var(--primary2)">Player link</h2>
           <p class="subtle">Once the room loads, the QR code will point to <code>play.html?pin=YOUR_PIN</code>.</p>
           <p class="subtle">GitHub Pages hosts the UI only; Supabase stores the live game state.</p>
         </aside>
@@ -157,6 +157,11 @@
     state.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
     state.gameId = snap.game.id;
     els.status.textContent = snap.game.status || 'READY';
+
+    // Free the lock if we leave the finished screen
+    if (snap.game.status !== 'FINISHED') {
+      state.finishedRendered = false;
+    }
 
     maybeSubscribe();
     handleAudioTransitions(previous, snap);
@@ -255,13 +260,13 @@
           <div class="qr-wrap"><canvas id="qrCanvas"></canvas></div>
           <p class="subtle">Players join at <strong>${escapeHtml(playUrl)}</strong></p>
           <div class="actions" style="justify-content:center;margin-top:22px">
-            <button class="btn big" data-action="advance">🏈 Kickoff</button>
+            <button class="btn big" data-action="advance">Start Game</button>
             <button class="btn secondary" data-action="reset">Reset room</button>
           </div>
         </section>
         <aside class="card">
-          <h2 style="margin-top:0">Joined Players <span class="subtle">(${players.length})</span></h2>
-          <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">No players yet. The stadium gates are open.</p>'}</div>
+          <h2 style="margin-top:0; color:var(--primary2)">Joined Players <span class="subtle">(${players.length})</span></h2>
+          <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">No players yet. Gates are open.</p>'}</div>
         </aside>
       </div>`;
     bindActions();
@@ -273,10 +278,10 @@
     els.stage.innerHTML = `
       <section class="card" style="text-align:center;min-height:68vh;display:grid;place-items:center">
         <div>
-          <p class="status-pill" style="margin:auto auto 18px;width:max-content"><span class="status-dot"></span>KICKOFF COUNTDOWN</p>
+          <p class="status-pill" style="margin:auto auto 18px;width:max-content"><span class="status-dot"></span>GET READY</p>
           <h1 class="display">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
           <div id="precountdownNumber" class="pin" style="font-size:clamp(110px,20vw,280px)">3</div>
-          <p class="subtle">${players.length} players in the arena</p>
+          <p class="subtle" style="font-size:22px">${players.length} players in the arena</p>
           <div class="actions" style="justify-content:center;margin-top:20px">
             <button class="btn secondary" data-action="advance">Start now</button>
             <button class="btn danger" data-action="reveal">Skip / Reveal</button>
@@ -310,15 +315,15 @@
           <h1 class="question-title">${escapeHtml(q.question || 'Question')}</h1>
           ${q.imageUrl ? `<img class="question-image" src="${escapeAttr(q.imageUrl)}" alt="Question image">` : ''}
           <div class="answers">${answers}</div>
-          ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:18px"><strong>${q.explanation ? 'Explanation' : 'Fun fact'}:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
+          ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:24px"><strong>${q.explanation ? 'Explanation' : 'Fun fact'}:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
         </section>
         <aside class="card">
-          ${revealed ? '<h2 style="margin-top:0">Answer Reveal</h2>' : '<h2 style="margin-top:0">Live Responses</h2>'}
+          ${revealed ? '<h2 style="margin-top:0; color:var(--primary)">Answer Reveal</h2>' : '<h2 style="margin-top:0; color:var(--primary)">Live Responses</h2>'}
           ${revealed ? distribution : `
             <div id="timerRing" class="timer-ring"><div class="timer-ring-inner"><span id="timerNumber">${Number(snap.game.questionTimerLimit || 20)}</span></div></div>
-            <p class="counter" style="margin-top:20px">${Number(stats.total || 0)} / ${active} answered</p>
+            <p class="counter" style="margin-top:24px">${Number(stats.total || 0)} / ${active} answered</p>
           `}
-          <div class="actions" style="justify-content:center;margin-top:22px">
+          <div class="actions" style="justify-content:center;margin-top:32px">
             ${revealed ? '<button class="btn big" data-action="advance">Show leaderboard</button>' : '<button class="btn danger big" data-action="reveal">Skip / Reveal</button>'}
           </div>
         </aside>
@@ -332,7 +337,7 @@
       const count = Number(stats[letter] || 0);
       const width = Math.round((count / max) * 100);
       return `<div class="dist-row">
-        <div class="answer-card ${letter}" style="min-height:54px;padding:8px;border-radius:16px;display:grid;place-items:center;grid-template-columns:1fr">${shape(letter)}</div>
+        <div class="answer-card ${letter}" style="min-height:54px;padding:8px;border-radius:16px;display:grid;place-items:center;grid-template-columns:1fr;box-shadow:none;">${shape(letter)}</div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
         <div>${count}${letter === correct ? ' ✅' : ''}</div>
       </div>`;
@@ -342,11 +347,11 @@
   function renderLeaderboard(finalMode) {
     const rows = state.snapshot.leaderboard || [];
     els.stage.innerHTML = `
-      <section class="card" style="max-width:980px;margin:0 auto">
+      <section class="card" style="max-width:850px;margin:0 auto">
         <h1 class="display" style="text-align:center;margin-bottom:22px">Leaderboard</h1>
-        ${rows.map(scoreRow).join('') || '<p class="subtle">No scores yet.</p>'}
-        <div class="actions" style="justify-content:center;margin-top:24px">
-          <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next'}</button>
+        ${rows.map(scoreRow).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+        <div class="actions" style="justify-content:center;margin-top:32px">
+          <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next Question'}</button>
         </div>
       </section>`;
     bindActions();
@@ -354,26 +359,48 @@
 
   function renderFinished() {
     const rows = state.snapshot.leaderboard || [];
-    if (!state.confettiFired) {
-      state.confettiFired = true;
-      fireConfetti();
+    
+    // Only lock and inject HTML once so animations aren't destroyed on DB sync
+    if (!state.finishedRendered) {
+      const podium = [rows[1], rows[0], rows[2]];
+      els.stage.innerHTML = `
+        <section class="card" style="max-width:900px;margin:0 auto;text-align:center">
+          <h1 class="display">Final Podium</h1>
+          <div class="podium">
+            ${podiumPlace(podium[0], '🥈', 'second', 'pod-2')}
+            ${podiumPlace(podium[1], '🏆', 'first', 'pod-1')}
+            ${podiumPlace(podium[2], '🥉', 'third', 'pod-3')}
+          </div>
+          <h2 style="margin-top:40px; color:var(--primary);">Top 10</h2>
+          <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
+          <div class="actions" style="justify-content:center;margin-top:32px">
+            <button class="btn danger" data-action="reset">Reset room</button>
+          </div>
+        </section>`;
+      bindActions();
+      state.finishedRendered = true;
+      state.confettiFired = false;
+
+      // Dramatic Step Animation
+      setTimeout(function() {
+        const el = document.getElementById('pod-3');
+        if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
+      }, 600);
+
+      setTimeout(function() {
+        const el = document.getElementById('pod-2');
+        if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
+      }, 1600);
+
+      setTimeout(function() {
+        const el = document.getElementById('pod-1');
+        if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
+        if (!state.confettiFired) {
+            state.confettiFired = true;
+            fireConfetti();
+        }
+      }, 2800);
     }
-    const podium = [rows[1], rows[0], rows[2]];
-    els.stage.innerHTML = `
-      <section class="card" style="max-width:1180px;margin:0 auto;text-align:center">
-        <h1 class="display">Final Podium</h1>
-        <div class="podium">
-          ${podiumPlace(podium[0], '🥈', 'second')}
-          ${podiumPlace(podium[1], '🏆', 'first')}
-          ${podiumPlace(podium[2], '🥉', 'third')}
-        </div>
-        <h2 style="margin-top:30px">Top 10</h2>
-        <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
-        <div class="actions" style="justify-content:center;margin-top:24px">
-          <button class="btn danger" data-action="reset">Reset room</button>
-        </div>
-      </section>`;
-    bindActions();
   }
 
   function bindActions() {
@@ -384,6 +411,7 @@
 
   async function advanceGame() {
     try {
+      state.finishedRendered = false; // Reset protection lock
       const snap = await rpc('qa_advance_game', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken });
       setSnapshot(snap);
     } catch (err) { showError(err.message || err); }
@@ -391,6 +419,7 @@
 
   async function revealRound(reason) {
     try {
+      state.finishedRendered = false;
       const snap = await rpc('qa_reveal_round', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken, p_reason: reason || 'host' });
       setSnapshot(snap);
     } catch (err) { showError(err.message || err); }
@@ -399,6 +428,7 @@
   async function resetGame() {
     if (!confirm('Reset the room and remove players/scores?')) return;
     state.confettiFired = false;
+    state.finishedRendered = false;
     state.revealRequestedFor = '';
     try {
       const snap = await rpc('qa_reset_game', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken, p_keep_players: false });
@@ -454,9 +484,16 @@
 
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
   function shape(letter) { return ({ A:'▲', B:'✕', C:'●', D:'■' })[letter] || letter; }
-  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#4ade80')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
-  function scoreRow(p, i) { return `<div class="scoreboard-row" style="animation-delay:${Math.min(i * 40, 420)}ms"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()}</div></div>`; }
-  function podiumPlace(p, medal, cls) { return `<div class="podium-place ${cls}"><div class="podium-medal">${medal}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pts' : ''}</div></div>`; }
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#8b5cf6')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
+  
+  // Clean row creation with no inline inline continuous delay animations 
+  function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
+  
+  // Attached dynamic ID and styling logic to hide prior to sequenced reveal animation
+  function podiumPlace(p, medal, cls, id) { 
+    const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
+    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-medal">${medal}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
+  }
 
   function playerUrl() {
     const url = new URL('play.html', window.location.href);
@@ -466,14 +503,14 @@
   function drawQr(text) {
     const canvas = document.getElementById('qrCanvas');
     if (canvas && window.QRCode) {
-      QRCode.toCanvas(canvas, text, { width: 180, margin: 1 }, function(){});
+      QRCode.toCanvas(canvas, text, { width: 180, margin: 1, color: { dark: "#1f2937", light: "#ffffff" } }, function(){});
     }
   }
   function fireConfetti() {
     if (!window.confetti) return;
-    confetti({ particleCount: 180, spread: 90, origin: { y: .75 } });
-    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .15, y: .7 } }); }, 450);
-    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .85, y: .7 } }); }, 800);
+    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff', '#f59e0b'] });
+    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .15, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 450);
+    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .85, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 800);
   }
   function showError(message) { els.error.textContent = String(message || 'Something went wrong.'); els.error.classList.remove('hidden'); }
   function hideError() { els.error.classList.add('hidden'); }
@@ -483,4 +520,3 @@
 
   window.addEventListener('load', init);
 })();
-
