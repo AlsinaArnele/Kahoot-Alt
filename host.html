@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#05140b">
+  <meta name="referrer" content="no-referrer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script>window.QA_BOOTSTRAP = window.QA_CONFIG || window.QA_BOOTSTRAP || {};</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body class="host-body">
+  <div id="app">
+    <div class="audio-unlock" id="audioUnlock">
+      <div class="card audio-box">
+        <div class="brand" style="justify-content:center"><span class="brand-badge">🏟️</span> QUIZ ARENA</div>
+        <p class="subtle">Tap once to unlock stadium music, pop SFX, reveal sounds, podium music, and applause.</p>
+        <button class="btn big" id="unlockAudioBtn">Unlock Stadium Audio</button>
+        <button class="btn secondary" id="skipAudioBtn" style="margin-top:12px">Continue Muted</button>
+      </div>
+    </div>
+
+    <main class="shell">
+      <div class="topbar">
+        <div class="brand"><span class="brand-badge">🏟️</span> QUIZ ARENA</div>
+        <div class="actions">
+          <span class="status-pill"><span class="status-dot"></span><span id="statusText">CONNECTING</span></span>
+          <button class="btn secondary" id="muteBtn">🔊 Audio</button>
+          <button class="btn secondary" id="refreshBtn">↻ Refresh</button>
+        </div>
+      </div>
+
+      <div id="hostError" class="error hidden"></div>
+      <div id="hostNotice" class="notice hidden"></div>
+      <section id="hostStage"></section>
+    </main>
+  </div>
+
+  <script src="audio.js"></script>
+  <script src="host.js"></script>
+</body>
+</html>
