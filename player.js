@@ -1,4 +1,3 @@
-
 (function(){
   const BOOT = window.QA_BOOTSTRAP || {};
   const LS_KEY = 'quiz_arena_player_v2';
@@ -19,6 +18,32 @@
   };
   const stage = document.getElementById('playerStage');
   const errorEl = document.getElementById('playerError');
+
+  // List of restricted keywords and phrases
+  const RESTRICTED_TERMS = [
+    'resignation',
+    'resign',
+    'tutam',
+    'twoterms',
+    'twoterm',
+    'rutomustgo',
+    'zakayo',
+    'fuck',
+    'shit',
+    'bitch',
+    'asshole',
+    'cunt',
+    'bastard',
+    'dick',
+    'pussy'
+  ];
+
+  // Helper function to detect blocked keywords
+  function isRestrictedNickname(nickname) {
+    // Strips out all spaces and special characters so bypasses like "T_U_T_A_M" or "R.e.s.i.g.n" are caught
+    const cleanNick = String(nickname || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return RESTRICTED_TERMS.some(term => cleanNick.includes(term));
+  }
 
   function getUrlPin() {
     try {
@@ -79,6 +104,12 @@
     if (!pin) return showError('Game PIN is required.');
     if (!nick) return showError('Nickname is required.');
     if (nick.length > 20) return showError('Nickname must be 20 characters or fewer.');
+    
+    // Check against the profanity and restricted terms filter
+    if (isRestrictedNickname(nick)) {
+      return showError('Please choose an appropriate nickname.');
+    }
+
     stage.querySelector('button').disabled = true;
     stage.querySelector('button').innerHTML = '<span class="loading"></span> Joining';
     try {
@@ -300,4 +331,3 @@
 
   window.addEventListener('load', init);
 })();
-
