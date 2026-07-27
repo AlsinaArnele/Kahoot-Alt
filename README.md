@@ -1,4 +1,4 @@
-# QUIZ ARENA GitHub Pages Static UI
+# QUIZ ARENA GitHub
 
 This package hosts the **front end only** on GitHub Pages.
 
