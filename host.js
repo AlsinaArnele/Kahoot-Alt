@@ -262,7 +262,6 @@
           <div class="qr-wrap">
             <img src="${qrImageUrl}" alt="Join Game QR Code" style="width:180px; height:180px; object-fit:contain; display:block;" />
           </div>
-          <p class="subtle">Players join at <strong>${escapeHtml(playUrl)}</strong></p>
           <div class="actions" style="justify-content:center;margin-top:22px">
             <button class="btn big" data-action="advance">Start Game</button>
             <button class="btn secondary" data-action="reset">Reset room</button>
