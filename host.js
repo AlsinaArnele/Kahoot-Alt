@@ -252,12 +252,16 @@
   function renderLobby() {
     const players = state.snapshot.players || [];
     const playUrl = playerUrl();
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
+
     els.stage.innerHTML = `
       <div class="grid host-grid">
         <section class="card pin-box">
           <div class="pin-label">Game PIN</div>
           <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
-          <div class="qr-wrap"><canvas id="qrCanvas"></canvas></div>
+          <div class="qr-wrap">
+            <img src="${qrImageUrl}" alt="Join Game QR Code" style="width:180px; height:180px; object-fit:contain; display:block;" />
+          </div>
           <p class="subtle">Players join at <strong>${escapeHtml(playUrl)}</strong></p>
           <div class="actions" style="justify-content:center;margin-top:22px">
             <button class="btn big" data-action="advance">Start Game</button>
@@ -270,7 +274,6 @@
         </aside>
       </div>`;
     bindActions();
-    drawQr(playUrl);
   }
 
   function renderPrecountdown() {
