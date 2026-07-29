@@ -105,7 +105,6 @@
     if (!nick) return showError('Nickname is required.');
     if (nick.length > 20) return showError('Nickname must be 20 characters or fewer.');
     
-    // Check against the profanity and restricted terms filter
     if (isRestrictedNickname(nick)) {
       return showError('Please choose an appropriate nickname.');
     }
@@ -241,6 +240,7 @@
       return;
     }
 
+    /* Player View renders clean letter choice buttons without shape emojis */
     stage.innerHTML = `
       <div class="join-card">
         <div class="player-status">
@@ -250,7 +250,7 @@
           <p class="subtle" style="margin-top:-8px">Question text is on the jumbotron.</p>
         </div>
         <div class="controller-grid">
-          ${['A','B','C','D'].map(function(letter){ return `<button class="controller-btn ${letter}" data-choice="${letter}"><span class="mini-shape">${shape(letter)}</span></button>`; }).join('')}
+          ${['A','B','C','D'].map(function(letter){ return `<button class="controller-btn ${letter}" data-choice="${letter}">${letter}</button>`; }).join('')}
         </div>
       </div>`;
     document.querySelectorAll('[data-choice]').forEach(function(btn){
