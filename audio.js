@@ -4,6 +4,7 @@
       this.unlocked = false;
       this.muted = false;
       this.currentAudio = null;
+      this.activeSfx = []; // Tracks all running sound effects
       this.ytPlayer = null;
       this.ytReady = false;
       this.pendingYouTube = null;
@@ -23,6 +24,7 @@
     setMuted(value) {
       this.muted = !!value;
       if (this.currentAudio) this.currentAudio.muted = this.muted;
+      this.activeSfx.forEach(sfx => { if (sfx) sfx.muted = this.muted; });
       if (this.ytPlayer && this.ytPlayer.mute && this.ytPlayer.unMute) {
         try {
           this.muted ? this.ytPlayer.mute() : this.ytPlayer.unMute();
@@ -30,7 +32,8 @@
       }
     }
 
-    stopMusic() {
+    // Instantly stops ALL music AND running sound effects
+    stopAll() {
       if (this.currentAudio) {
         try {
           this.currentAudio.pause();
@@ -38,14 +41,31 @@
         } catch (err) {}
         this.currentAudio = null;
       }
+      
+      if (this.activeSfx && this.activeSfx.length) {
+        this.activeSfx.forEach(sfx => {
+          try {
+            sfx.pause();
+            sfx.currentTime = 0;
+          } catch (err) {}
+        });
+        this.activeSfx = [];
+      }
+
       this.destroyYouTubePlayer();
+    }
+
+    stopMusic() {
+      this.stopAll();
     }
 
     playMusic(value, loop, startTime) {
       const media = this.parseMedia(value);
       if (!media.value || !this.unlocked || this.muted) return;
       if (media.type === 'youtube') return this.playYouTube(media.value, loop !== false, startTime);
-      this.stopMusic();
+      
+      this.stopAll(); // Kill any playing audio or SFX before starting new music
+
       try {
         const audio = new Audio(media.value);
         audio.loop = loop !== false;
@@ -67,15 +87,34 @@
       const media = this.parseMedia(value);
       if (!media.value || !this.unlocked || this.muted) return;
       if (media.type === 'youtube') return;
+
       try {
         const audio = new Audio(media.value);
         audio.volume = 0.85;
+        audio.muted = this.muted;
         audio.preload = 'auto';
         if (startTime && !isNaN(startTime)) {
           audio.currentTime = startTime;
         }
-        audio.addEventListener('error', function () { console.error('SFX source failed:', media.value, audio.error); });
-        audio.play().catch(function (err) { console.error('SFX playback failed:', media.value, err); });
+        
+        // Track active SFX instance so it can be killed on skip
+        this.activeSfx.push(audio);
+        
+        const cleanup = () => {
+          const idx = this.activeSfx.indexOf(audio);
+          if (idx !== -1) this.activeSfx.splice(idx, 1);
+        };
+
+        audio.addEventListener('ended', cleanup);
+        audio.addEventListener('error', () => {
+          console.error('SFX source failed:', media.value, audio.error);
+          cleanup();
+        });
+
+        audio.play().catch(err => {
+          console.error('SFX playback failed:', media.value, err);
+          cleanup();
+        });
       } catch (err) {
         console.error('SFX setup failed:', media.value, err);
       }
@@ -188,7 +227,7 @@
     playYouTube(videoId, loop, startTime) {
       const cleanVideoId = this.extractYouTubeId(videoId) || String(videoId || '').trim();
       if (!cleanVideoId || !this.unlocked || this.muted) return;
-      this.stopMusic();
+      this.stopAll();
       if (!this.ytReady || !(window.YT && window.YT.Player)) {
         this.pendingYouTube = { videoId: cleanVideoId, loop: loop, startTime: startTime };
         this.ensureYouTubeApi();
