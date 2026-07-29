@@ -253,7 +253,7 @@
   function renderLobby() {
     const players = state.snapshot.players || [];
     const playUrl = playerUrl();
-    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1fYqyPdvncX8qrOrFT34X61uooLTeVbWD&sz=s1000';
 
     els.stage.innerHTML = `
       <div class="grid host-grid">
