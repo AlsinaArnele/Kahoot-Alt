@@ -12,7 +12,7 @@
     lastAnswerTotal: 0,
     lastStatus: '',
     confettiFired: false,
-    finishedRendered: false, // Ensures podium animation only plays once per finish
+    finishedRendered: false, // Ensures podium animation only triggers once per finish
     muted: false,
     loading: false,
     snapshotQueued: false
@@ -100,12 +100,12 @@
       state.muted = true;
       state.audio.setMuted(true);
       els.audioUnlock.classList.add('hidden');
-      els.muteBtn.textContent = 'Muted';
+      els.muteBtn.textContent = '🔇 Muted';
     });
     els.muteBtn.addEventListener('click', function(){
       state.muted = !state.muted;
       state.audio.setMuted(state.muted);
-      els.muteBtn.textContent = state.muted ? 'Muted' : 'Audio';
+      els.muteBtn.textContent = state.muted ? '🔇 Muted' : '🔊 Audio';
       if (!state.muted) playMusicForStatus(true);
     });
     els.refreshBtn.addEventListener('click', loadSnapshot);
@@ -158,7 +158,6 @@
     state.gameId = snap.game.id;
     els.status.textContent = snap.game.status || 'READY';
 
-    // Free the lock if we leave the finished screen
     if (snap.game.status !== 'FINISHED') {
       state.finishedRendered = false;
     }
@@ -252,7 +251,7 @@
   function renderLobby() {
     const players = state.snapshot.players || [];
     const playUrl = playerUrl();
-    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1fYqyPdvncX8qrOrFT34X61uooLTeVbWD&sz=s1000'; 
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
 
     els.stage.innerHTML = `
       <div class="grid host-grid">
@@ -262,6 +261,7 @@
           <div class="qr-wrap">
             <img src="${qrImageUrl}" alt="Join Game QR Code" style="width:180px; height:180px; object-fit:contain; display:block;" />
           </div>
+          <p class="subtle">Players join at <strong>${escapeHtml(playUrl)}</strong></p>
           <div class="actions" style="justify-content:center;margin-top:22px">
             <button class="btn big" data-action="advance">Start Game</button>
             <button class="btn secondary" data-action="reset">Reset room</button>
@@ -338,10 +338,11 @@
     return ['A','B','C','D'].map(function(letter){
       const count = Number(stats[letter] || 0);
       const width = Math.round((count / max) * 100);
-      return `<div class="dist-row">
-        <div class="answer-card ${letter}" style="min-height:54px;padding:8px;border-radius:16px;display:grid;place-items:center;grid-template-columns:1fr;box-shadow:none;">${shape(letter)}</div>
+      const isCorrect = letter === correct;
+      return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}">
+        <div class="answer-card ${letter}" style="min-height:44px;padding:6px;border-radius:12px;display:grid;place-items:center;grid-template-columns:1fr;box-shadow:none;">${shape(letter)}</div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
-        <div>${count}${letter === correct ? ' ✅' : ''}</div>
+        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--primary2);' : ''}">${count}</div>
       </div>`;
     }).join('');
   }
@@ -362,7 +363,6 @@
   function renderFinished() {
     const rows = state.snapshot.leaderboard || [];
     
-    // Only lock and inject HTML once so animations aren't destroyed on DB sync
     if (!state.finishedRendered) {
       const podium = [rows[1], rows[0], rows[2]];
       els.stage.innerHTML = `
@@ -383,7 +383,7 @@
       state.finishedRendered = true;
       state.confettiFired = false;
 
-      // Dramatic Step Animation
+      // Sequential reveal animations for places 3, 2, and 1
       setTimeout(function() {
         const el = document.getElementById('pod-3');
         if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
@@ -413,7 +413,7 @@
 
   async function advanceGame() {
     try {
-      state.finishedRendered = false; // Reset protection lock
+      state.finishedRendered = false;
       const snap = await rpc('qa_advance_game', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken });
       setSnapshot(snap);
     } catch (err) { showError(err.message || err); }
@@ -487,11 +487,8 @@
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
   function shape(letter) { return ({ A:'▲', B:'✕', C:'●', D:'■' })[letter] || letter; }
   function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#8b5cf6')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
-  
-  // Clean row creation with no inline inline continuous delay animations 
   function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
   
-  // Attached dynamic ID and styling logic to hide prior to sequenced reveal animation
   function podiumPlace(p, medal, cls, id) { 
     const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
     return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-medal">${medal}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
@@ -502,18 +499,14 @@
     url.searchParams.set('pin', state.snapshot && state.snapshot.game ? state.snapshot.game.gamePin : (BOOT.gamePin || ''));
     return url.toString();
   }
-  function drawQr(text) {
-    const canvas = document.getElementById('qrCanvas');
-    if (canvas && window.QRCode) {
-      QRCode.toCanvas(canvas, text, { width: 180, margin: 1, color: { dark: "#1f2937", light: "#ffffff" } }, function(){});
-    }
-  }
+
   function fireConfetti() {
     if (!window.confetti) return;
     confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff', '#f59e0b'] });
     setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .15, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 450);
     setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .85, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 800);
   }
+
   function showError(message) { els.error.textContent = String(message || 'Something went wrong.'); els.error.classList.remove('hidden'); }
   function hideError() { els.error.classList.add('hidden'); }
   function showNotice(message) { els.notice.textContent = message; els.notice.classList.remove('hidden'); setTimeout(function(){ els.notice.classList.add('hidden'); }, 3000); }
