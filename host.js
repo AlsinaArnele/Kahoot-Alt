@@ -1,245 +1,568 @@
-(function () {
-  class QuizArenaAudio {
-    constructor() {
-      this.unlocked = false;
-      this.muted = false;
-      this.currentAudio = null;
-      this.ytPlayer = null;
-      this.ytReady = false;
-      this.pendingYouTube = null;
-      this.ensureYouTubeApi();
-    }
+(function(){
+  const BOOT = window.QA_BOOTSTRAP || {};
+  const state = {
+    client: null,
+    audio: new window.QuizArenaAudio(),
+    snapshot: null,
+    channel: null,
+    gameId: '',
+    serverOffsetMs: 0,
+    timerInterval: null,
+    revealRequestedFor: '',
+    lastAnswerTotal: 0,
+    lastStatus: '',
+    confettiFired: false,
+    finishedRendered: false,
+    muted: false,
+    loading: false,
+    snapshotQueued: false
+  };
 
-    unlock() {
-      this.unlocked = true;
-      try {
-        const a = new Audio();
-        a.volume = 0;
-        a.muted = true;
-        a.play().catch(function () {});
-      } catch (err) {}
-    }
+  const els = {
+    stage: document.getElementById('hostStage'),
+    error: document.getElementById('hostError'),
+    notice: document.getElementById('hostNotice'),
+    status: document.getElementById('statusText'),
+    muteBtn: document.getElementById('muteBtn'),
+    refreshBtn: document.getElementById('refreshBtn'),
+    audioUnlock: document.getElementById('audioUnlock'),
+    unlockAudioBtn: document.getElementById('unlockAudioBtn'),
+    skipAudioBtn: document.getElementById('skipAudioBtn')
+  };
 
-    setMuted(value) {
-      this.muted = !!value;
-      if (this.currentAudio) this.currentAudio.muted = this.muted;
-      if (this.ytPlayer && this.ytPlayer.mute && this.ytPlayer.unMute) {
-        try {
-          this.muted ? this.ytPlayer.mute() : this.ytPlayer.unMute();
-        } catch (err) {}
-      }
-    }
+  const ROOM_STORAGE_KEY = 'quiz_arena_host_room_v1';
 
-    stopMusic() {
-      if (this.currentAudio) {
-        try {
-          this.currentAudio.pause();
-          this.currentAudio.currentTime = 0;
-        } catch (err) {}
-        this.currentAudio = null;
-      }
-      this.destroyYouTubePlayer();
-    }
+  function readRoomCredentials() {
+    const fromUrl = new URL(window.location.href);
+    const gamePin = (fromUrl.searchParams.get('pin') || fromUrl.searchParams.get('gamePin') || '').trim();
+    const hostToken = (fromUrl.searchParams.get('token') || fromUrl.searchParams.get('hostToken') || '').trim();
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(ROOM_STORAGE_KEY) || 'null'); } catch (err) {}
+    return {
+      gamePin: gamePin || (saved && saved.gamePin) || (BOOT.gamePin || '') || '',
+      hostToken: hostToken || (saved && saved.hostToken) || (BOOT.hostToken || '') || ''
+    };
+  }
 
-    playMusic(value, loop, startTime) {
-      const media = this.parseMedia(value);
-      if (!media.value || !this.unlocked || this.muted) return;
-      if (media.type === 'youtube') return this.playYouTube(media.value, loop !== false, startTime);
-      this.stopMusic();
-      try {
-        const audio = new Audio(media.value);
-        audio.loop = loop !== false;
-        audio.volume = 0.55;
-        audio.muted = this.muted;
-        audio.preload = 'auto';
-        if (startTime && !isNaN(startTime)) {
-          audio.currentTime = startTime;
-        }
-        audio.addEventListener('error', function () { console.error('Music source failed:', media.value, audio.error); });
-        audio.play().catch(function (err) { console.error('Music playback failed:', media.value, err); });
-        this.currentAudio = audio;
-      } catch (err) {
-        console.error('Music setup failed:', media.value, err);
-      }
-    }
+  function saveRoomCredentials(creds) {
+    try {
+      localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify({
+        gamePin: creds.gamePin || '',
+        hostToken: creds.hostToken || ''
+      }));
+    } catch (err) {}
+  }
 
-    playSfx(value, startTime) {
-      const media = this.parseMedia(value);
-      if (!media.value || !this.unlocked || this.muted) return;
-      if (media.type === 'youtube') return;
-      try {
-        const audio = new Audio(media.value);
-        audio.volume = 0.85;
-        audio.preload = 'auto';
-        if (startTime && !isNaN(startTime)) {
-          audio.currentTime = startTime;
-        }
-        audio.addEventListener('error', function () { console.error('SFX source failed:', media.value, audio.error); });
-        audio.play().catch(function (err) { console.error('SFX playback failed:', media.value, err); });
-      } catch (err) {
-        console.error('SFX setup failed:', media.value, err);
-      }
-    }
+  function renderRoomSetup() {
+    const saved = readRoomCredentials();
+    els.stage.innerHTML = `
+      <div class="grid host-grid">
+        <section class="card join-card" style="width:100%">
+          <h1 class="display" style="font-size:54px;margin:0 0 10px">Open a Room</h1>
+          <p class="subtle" style="margin-bottom:18px">Paste the current Game PIN and Host Token for this Supabase room. They stay in your browser only.</p>
+          <form id="roomForm">
+            <label class="subtle" for="roomPinInput">Game PIN</label>
+            <input id="roomPinInput" class="input" maxlength="20" autocomplete="off" placeholder="123456" value="${escapeAttr(saved.gamePin || '')}">
+            <label class="subtle" for="roomTokenInput">Host Token</label>
+            <input id="roomTokenInput" class="input" maxlength="120" autocomplete="off" placeholder="Paste host token" value="${escapeAttr(saved.hostToken || '')}">
+            <button class="btn big" style="width:100%;margin-top:12px" type="submit">Load Arena</button>
+          </form>
+        </section>
+        <aside class="card">
+          <h2 style="margin-top:0; color:var(--primary2)">Player link</h2>
+          <p class="subtle">Once the room loads, the QR code will point to <code>play.html?pin=YOUR_PIN</code>.</p>
+          <p class="subtle">GitHub Pages hosts the UI only; Supabase stores the live game state.</p>
+        </aside>
+      </div>`;
+    const form = document.getElementById('roomForm');
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const gamePin = document.getElementById('roomPinInput').value.trim();
+      const hostToken = document.getElementById('roomTokenInput').value.trim();
+      if (!gamePin) return showError('Game PIN is required.');
+      if (!hostToken) return showError('Host Token is required.');
+      BOOT.gamePin = gamePin;
+      BOOT.hostToken = hostToken;
+      saveRoomCredentials({ gamePin, hostToken });
+      hideError();
+      state.client = window.supabase.createClient(BOOT.supabaseUrl, BOOT.anonKey);
+      loadSnapshot();
+    });
+  }
 
-    parseMedia(value) {
-      const raw = String(value || '').trim();
-      if (!raw) return { type: '', value: '' };
-      const youtubeId = this.extractYouTubeId(raw);
-      if (youtubeId) return { type: 'youtube', value: youtubeId };
-      const driveId = this.extractGoogleDriveId(raw);
-      if (driveId) {
-        return { type: 'audio', value: 'https://drive.google.com/uc?export=download&id=' + encodeURIComponent(driveId) };
-      }
-      return { type: 'audio', value: raw };
-    }
+  function init() {
+    els.unlockAudioBtn.addEventListener('click', function(){
+      state.audio.unlock();
+      els.audioUnlock.classList.add('hidden');
+      playMusicForStatus();
+    });
+    els.skipAudioBtn.addEventListener('click', function(){
+      state.muted = true;
+      state.audio.setMuted(true);
+      els.audioUnlock.classList.add('hidden');
+      els.muteBtn.textContent = '🔇 Muted';
+    });
+    els.muteBtn.addEventListener('click', function(){
+      state.muted = !state.muted;
+      state.audio.setMuted(state.muted);
+      els.muteBtn.textContent = state.muted ? '🔇 Muted' : '🔊 Audio';
+      if (!state.muted) playMusicForStatus(true);
+    });
+    els.refreshBtn.addEventListener('click', loadSnapshot);
 
-    extractYouTubeId(value) {
-      const text = String(value || '').trim();
-      if (/^[a-zA-Z0-9_-]{11}$/.test(text)) return text;
-      const patterns = [
-        /youtu\.be\/([^?&#/]+)/i,
-        /youtube\.com\/watch\?.*?[?&]v=([^&#]+)/i,
-        /youtube\.com\/embed\/([^?&#/]+)/i,
-        /youtube\.com\/shorts\/([^?&#/]+)/i,
-        /youtube\.com\/live\/([^?&#/]+)/i,
-        /[?&]v=([^&#]+)/i
-      ];
-      for (let i = 0; i < patterns.length; i++) {
-        const match = text.match(patterns[i]);
-        if (match && match[1]) return decodeURIComponent(match[1]).replace(/[^a-zA-Z0-9_-]/g, '');
-      }
-      return '';
+    if (!BOOT.supabaseUrl || !BOOT.anonKey) {
+      showError('Missing Supabase URL or anon key. Check config.js.');
+      return;
     }
-
-    extractGoogleDriveId(value) {
-      const text = String(value || '').trim();
-      if (/^[a-zA-Z0-9_-]{20,}$/.test(text)) return text;
-      const patterns = [
-        /drive\.google\.com\/file\/d\/([^/]+)/i,
-        /drive\.google\.com\/open\?id=([^&]+)/i,
-        /drive\.google\.com\/uc\?[^#]*id=([^&]+)/i,
-        /docs\.google\.com\/uc\?[^#]*id=([^&]+)/i
-      ];
-      for (let i = 0; i < patterns.length; i++) {
-        const match = text.match(patterns[i]);
-        if (match && match[1]) return decodeURIComponent(match[1]).trim();
-      }
-      return '';
+    const creds = readRoomCredentials();
+    BOOT.gamePin = creds.gamePin || BOOT.gamePin || '';
+    BOOT.hostToken = creds.hostToken || BOOT.hostToken || '';
+    state.client = window.supabase.createClient(BOOT.supabaseUrl, BOOT.anonKey);
+    if (BOOT.gamePin && BOOT.hostToken) {
+      saveRoomCredentials({ gamePin: BOOT.gamePin, hostToken: BOOT.hostToken });
+      loadSnapshot();
+    } else {
+      renderRoomSetup();
     }
+  }
 
-    ensureYouTubeApi() {
-      if (window.YT && window.YT.Player) { this.ytReady = true; return; }
-      if (!document.getElementById('youtube-iframe-api')) {
-        const tag = document.createElement('script');
-        tag.id = 'youtube-iframe-api';
-        tag.src = 'https://www.youtube.com/iframe_api';
-        document.head.appendChild(tag);
-      }
-      const self = this;
-      const previousHandler = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = function() {
-        if (typeof previousHandler === 'function') {
-          try { previousHandler(); } catch (err) {}
-        }
-        self.ytReady = true;
-        if (self.pendingYouTube) {
-          const next = self.pendingYouTube;
-          self.pendingYouTube = null;
-          self.playYouTube(next.videoId, next.loop, next.startTime);
-        }
-      };
-    }
+  async function rpc(name, args) {
+    const { data, error } = await state.client.rpc(name, args || {});
+    if (error) throw new Error(error.message || JSON.stringify(error));
+    return data;
+  }
 
-    getYouTubeContainer() {
-      let container = document.getElementById('yt-audio-container');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'yt-audio-container';
-        container.style.cssText = 'position:fixed;left:0;bottom:0;width:200px;height:200px;opacity:0.01;pointer-events:none;z-index:-1;overflow:hidden;';
-        document.body.appendChild(container);
-      }
-      return container;
-    }
-
-    createYouTubeMount() {
-      const container = this.getYouTubeContainer();
-      container.innerHTML = '';
-      const mount = document.createElement('div');
-      const mountId = 'yt-audio-player-' + Date.now();
-      mount.id = mountId;
-      container.appendChild(mount);
-      return mountId;
-    }
-
-    destroyYouTubePlayer() {
-      if (this.ytPlayer) {
-        try {
-          if (this.ytPlayer.stopVideo) this.ytPlayer.stopVideo();
-          if (this.ytPlayer.destroy) this.ytPlayer.destroy();
-        } catch (err) {}
-        this.ytPlayer = null;
-      }
-      const container = document.getElementById('yt-audio-container');
-      if (container) {
-        try { container.innerHTML = ''; } catch (err) {}
-      }
-    }
-
-    playYouTube(videoId, loop, startTime) {
-      const cleanVideoId = this.extractYouTubeId(videoId) || String(videoId || '').trim();
-      if (!cleanVideoId || !this.unlocked || this.muted) return;
-      this.stopMusic();
-      if (!this.ytReady || !(window.YT && window.YT.Player)) {
-        this.pendingYouTube = { videoId: cleanVideoId, loop: loop, startTime: startTime };
-        this.ensureYouTubeApi();
-        return;
-      }
-      const mountId = this.createYouTubeMount();
-      const self = this;
-      try {
-        this.ytPlayer = new YT.Player(mountId, {
-          height: '200',
-          width: '200',
-          videoId: cleanVideoId,
-          playerVars: {
-            autoplay: 1,
-            controls: 0,
-            disablekb: 1,
-            playsinline: 1,
-            rel: 0,
-            start: startTime || 0,
-            loop: loop ? 1 : 0,
-            playlist: loop ? cleanVideoId : undefined
-          },
-          events: {
-            onReady: function(event) {
-              try {
-                self.muted ? event.target.mute() : event.target.unMute();
-                event.target.setVolume(55);
-                if (startTime) event.target.seekTo(startTime);
-                event.target.playVideo();
-              } catch (err) {
-                console.error('YouTube playback failed:', err);
-              }
-            },
-            onStateChange: function(event) {
-              if (loop && window.YT && event.data === YT.PlayerState.ENDED) {
-                try {
-                  event.target.seekTo(startTime || 0);
-                  event.target.playVideo();
-                } catch (err) {}
-              }
-            },
-            onError: function(event) {
-              console.error('YouTube player error:', event && event.data);
-            }
-          }
-        });
-      } catch (err) {
-        console.error('YouTube player setup failed:', err);
+  async function loadSnapshot() {
+    if (state.loading) { state.snapshotQueued = true; return; }
+    state.loading = true;
+    try {
+      const snap = await rpc('qa_host_snapshot', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken });
+      setSnapshot(snap);
+      hideError();
+    } catch (err) {
+      showError(err.message || err);
+    } finally {
+      state.loading = false;
+      if (state.snapshotQueued) {
+        state.snapshotQueued = false;
+        setTimeout(loadSnapshot, 60);
       }
     }
   }
 
-  window.QuizArenaAudio = QuizArenaAudio;
+  function setSnapshot(snap) {
+    if (!snap || !snap.game) return;
+    const previous = state.snapshot;
+    state.snapshot = snap;
+    state.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
+    state.gameId = snap.game.id;
+    els.status.textContent = snap.game.status || 'READY';
+
+    if (snap.game.status !== 'FINISHED') {
+      state.finishedRendered = false;
+    }
+
+    maybeSubscribe();
+    handleAudioTransitions(previous, snap);
+    render();
+    startTimerLoop();
+  }
+
+  function maybeSubscribe() {
+    if (!state.gameId || state.channel) return;
+    state.channel = state.client
+      .channel('quiz-arena-host-' + state.gameId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'id=eq.' + state.gameId }, debounceSnapshot)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: 'game_id=eq.' + state.gameId }, debounceSnapshot)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: 'game_id=eq.' + state.gameId }, function(payload){
+        const eventType = payload && payload.new ? payload.new.event_type : '';
+        if (eventType === 'ANSWER') {
+          state.audio.playSfx(configValue('PopSFX', 'Music/soundreality-pop-sound-423716.mp3'));
+        }
+        debounceSnapshot();
+      })
+      .subscribe(function(status){
+        if (status === 'SUBSCRIBED') showNotice('Realtime connected. Live gameplay is running directly on Supabase.');
+      });
+  }
+
+  let debounceHandle = null;
+  function debounceSnapshot() {
+    clearTimeout(debounceHandle);
+    debounceHandle = setTimeout(loadSnapshot, 90);
+  }
+
+  function nowServerMs() { return Date.now() + state.serverOffsetMs; }
+
+  function startTimerLoop() {
+    clearInterval(state.timerInterval);
+    state.timerInterval = setInterval(function(){
+      updateLiveTimer();
+    }, 160);
+    updateLiveTimer();
+  }
+
+  function updateLiveTimer() {
+    const snap = state.snapshot;
+    if (!snap || !snap.game) return;
+    const g = snap.game;
+
+    if (g.status === 'PRECOUNTDOWN') {
+      const started = new Date(g.precountdownStartedAt || snap.serverTime).getTime();
+      const remaining = Math.max(0, 3 - ((nowServerMs() - started) / 1000));
+      const el = document.getElementById('precountdownNumber');
+      if (el) el.textContent = String(Math.max(1, Math.ceil(remaining)));
+      if (remaining <= 0.05 && state.revealRequestedFor !== 'begin-' + g.currentRound) {
+        state.revealRequestedFor = 'begin-' + g.currentRound;
+        advanceGame();
+      }
+      return;
+    }
+
+    if (g.status === 'QUESTION') {
+      const limit = Number(g.questionTimerLimit || 20);
+      const started = new Date(g.questionStartedAt || snap.serverTime).getTime();
+      const elapsed = Math.max(0, (nowServerMs() - started) / 1000);
+      const remaining = Math.max(0, limit - elapsed);
+      const pct = Math.max(0, Math.min(100, (remaining / limit) * 100));
+      const sec = Math.ceil(remaining);
+      const timer = document.getElementById('timerNumber');
+      const ring = document.getElementById('timerRing');
+      if (timer) timer.textContent = String(sec);
+      if (ring) ring.style.setProperty('--pct', pct + '%');
+      if (remaining <= 0.05 && state.revealRequestedFor !== 'reveal-' + g.currentRound) {
+        state.revealRequestedFor = 'reveal-' + g.currentRound;
+        revealRound('timer');
+      }
+    }
+  }
+
+  function render() {
+    const snap = state.snapshot;
+    if (!snap || !snap.game) return;
+    const status = snap.game.status;
+    if (status === 'LOBBY') return renderLobby();
+    if (status === 'PRECOUNTDOWN') return renderPrecountdown();
+    if (status === 'QUESTION') return renderQuestion(false);
+    if (status === 'REVEAL') return renderQuestion(true);
+    if (status === 'LEADERBOARD') return renderLeaderboard(false);
+    if (status === 'FINISHED') return renderFinished();
+    els.stage.innerHTML = '<div class="card"><h1>Unknown status</h1></div>';
+  }
+
+  function renderLobby() {
+    const players = state.snapshot.players || [];
+    const playUrl = playerUrl();
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
+
+    els.stage.innerHTML = `
+      <div class="grid host-grid">
+        <section class="card pin-box">
+          <div class="pin-label">Game PIN</div>
+          <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
+          <div class="qr-wrap">
+            <img src="${qrImageUrl}" alt="Join Game QR Code" style="width:180px; height:180px; object-fit:contain; display:block;" />
+          </div>
+          <p class="subtle">Players join at <strong>${escapeHtml(playUrl)}</strong></p>
+          <div class="actions" style="justify-content:center;margin-top:22px">
+            <button class="btn big" data-action="advance">Start Game</button>
+            <button class="btn secondary" data-action="reset">Reset room</button>
+          </div>
+        </section>
+        <aside class="card">
+          <h2 style="margin-top:0; color:var(--primary2)">Joined Players <span class="subtle">(${players.length})</span></h2>
+          <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">No players yet. Gates are open.</p>'}</div>
+        </aside>
+      </div>`;
+    bindActions();
+  }
+
+  function renderPrecountdown() {
+    const players = state.snapshot.players || [];
+    els.stage.innerHTML = `
+      <section class="card" style="text-align:center;min-height:68vh;display:grid;place-items:center">
+        <div>
+          <p class="status-pill" style="margin:auto auto 18px;width:max-content"><span class="status-dot"></span>GET READY</p>
+          <h1 class="display">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
+          <div id="precountdownNumber" class="pin" style="font-size:clamp(110px,20vw,280px)">3</div>
+          <p class="subtle" style="font-size:22px">${players.length} players in the arena</p>
+          <div class="actions" style="justify-content:center;margin-top:20px">
+            <button class="btn secondary" data-action="advance">Start now</button>
+            <button class="btn danger" data-action="reveal">Skip / Reveal</button>
+          </div>
+        </div>
+      </section>`;
+    bindActions();
+  }
+
+  function renderQuestion(revealed) {
+    const snap = state.snapshot;
+    const q = snap.question || {};
+    const stats = snap.answerStats || { A:0, B:0, C:0, D:0, total:0 };
+    const active = Number(snap.activePlayerCount || 0);
+    const correct = String(q.correct || '').toUpperCase();
+    const answers = ['A','B','C','D'].map(function(letter){
+      const text = q['option' + letter] || q['option' + letter.toLowerCase()] || '';
+      const cls = revealed ? (letter === correct ? 'correct' : 'dim') : '';
+      return `<div class="answer-card ${letter} ${cls}"><div class="shape">${shape(letter)}</div><div>${escapeHtml(text)}</div></div>`;
+    }).join('');
+
+    const distribution = revealed ? renderDistribution(stats, correct) : '';
+    const meta = [q.category, q.difficulty, q.doublePoints ? 'DOUBLE POINTS' : ''].filter(Boolean).map(escapeHtml).join(' • ');
+    els.stage.innerHTML = `
+      <div class="grid host-grid">
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+            <span class="status-pill"><span class="status-dot"></span>Round ${escapeHtml(snap.game.currentRound || '')}</span>
+            <span class="subtle">${meta}</span>
+          </div>
+          <h1 class="question-title">${escapeHtml(q.question || 'Question')}</h1>
+          ${q.imageUrl ? `<img class="question-image" src="${escapeAttr(q.imageUrl)}" alt="Question image">` : ''}
+          <div class="answers">${answers}</div>
+          ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:24px"><strong>${q.explanation ? 'Explanation' : 'Fun fact'}:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
+        </section>
+        <aside class="card">
+          ${revealed ? '<h2 style="margin-top:0; color:var(--primary)">Answer Reveal</h2>' : '<h2 style="margin-top:0; color:var(--primary)">Live Responses</h2>'}
+          ${revealed ? distribution : `
+            <div id="timerRing" class="timer-ring"><div class="timer-ring-inner"><span id="timerNumber">${Number(snap.game.questionTimerLimit || 20)}</span></div></div>
+            <p class="counter" style="margin-top:24px">${Number(stats.total || 0)} / ${active} answered</p>
+          `}
+          <div class="actions" style="justify-content:center;margin-top:32px">
+            ${revealed ? '<button class="btn big" data-action="advance">Show leaderboard</button>' : '<button class="btn danger big" data-action="reveal">Skip / Reveal</button>'}
+          </div>
+        </aside>
+      </div>`;
+    bindActions();
+  }
+
+  function renderDistribution(stats, correct) {
+    const max = Math.max(1, stats.A || 0, stats.B || 0, stats.C || 0, stats.D || 0);
+    return ['A','B','C','D'].map(function(letter){
+      const count = Number(stats[letter] || 0);
+      const width = Math.round((count / max) * 100);
+      const isCorrect = letter === correct;
+      return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}">
+        <div class="answer-card ${letter}" style="min-height:44px;padding:6px;border-radius:12px;display:grid;place-items:center;grid-template-columns:1fr;box-shadow:none;">${shape(letter)}</div>
+        <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
+        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--primary2);' : ''}">${count}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderLeaderboard(finalMode) {
+    const rows = state.snapshot.leaderboard || [];
+    els.stage.innerHTML = `
+      <section class="card" style="max-width:850px;margin:0 auto">
+        <h1 class="display" style="text-align:center;margin-bottom:22px">Leaderboard</h1>
+        ${rows.map(scoreRow).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+        <div class="actions" style="justify-content:center;margin-top:32px">
+          <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next Question'}</button>
+        </div>
+      </section>`;
+    bindActions();
+  }
+
+  function renderFinished() {
+    const rows = state.snapshot.leaderboard || [];
+    
+    if (!state.finishedRendered) {
+      const podium = [rows[1], rows[0], rows[2]];
+      els.stage.innerHTML = `
+        <section class="card" style="max-width:900px;margin:0 auto;text-align:center">
+          <h1 class="display">Final Podium</h1>
+          <div class="podium">
+            ${podiumPlace(podium[0], '🥈', 'second', 'pod-2')}
+            ${podiumPlace(podium[1], '🏆', 'first', 'pod-1')}
+            ${podiumPlace(podium[2], '🥉', 'third', 'pod-3')}
+          </div>
+          <h2 style="margin-top:40px; color:var(--primary);">Top 10</h2>
+          <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
+          <div class="actions" style="justify-content:center;margin-top:32px">
+            <button class="btn danger" data-action="reset">Reset room</button>
+          </div>
+        </section>`;
+      bindActions();
+      state.finishedRendered = true;
+      state.confettiFired = false;
+
+      setTimeout(function() {
+        const el = document.getElementById('pod-3');
+        if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
+      }, 600);
+
+      setTimeout(function() {
+        const el = document.getElementById('pod-2');
+        if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
+      }, 1600);
+
+      setTimeout(function() {
+        const el = document.getElementById('pod-1');
+        if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
+        if (!state.confettiFired) {
+            state.confettiFired = true;
+            fireConfetti();
+        }
+      }, 2800);
+    }
+  }
+
+  function bindActions() {
+    document.querySelectorAll('[data-action="advance"]').forEach(function(btn){ btn.onclick = advanceGame; });
+    document.querySelectorAll('[data-action="reveal"]').forEach(function(btn){ btn.onclick = function(){ revealRound('host'); }; });
+    document.querySelectorAll('[data-action="reset"]').forEach(function(btn){ btn.onclick = resetGame; });
+  }
+
+  async function advanceGame() {
+    try {
+      state.finishedRendered = false;
+      const snap = await rpc('qa_advance_game', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken });
+      setSnapshot(snap);
+    } catch (err) { showError(err.message || err); }
+  }
+
+  async function revealRound(reason) {
+    try {
+      state.finishedRendered = false;
+      const snap = await rpc('qa_reveal_round', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken, p_reason: reason || 'host' });
+      setSnapshot(snap);
+    } catch (err) { showError(err.message || err); }
+  }
+
+  async function resetGame() {
+    if (!confirm('Reset the room and remove players/scores?')) return;
+    state.confettiFired = false;
+    state.finishedRendered = false;
+    state.revealRequestedFor = '';
+    try {
+      const snap = await rpc('qa_reset_game', { p_game_pin: BOOT.gamePin, p_host_token: BOOT.hostToken, p_keep_players: false });
+      setSnapshot(snap);
+    } catch (err) { showError(err.message || err); }
+  }
+
+  function handleAudioTransitions(prev, next) {
+    const prevStatus = prev && prev.game ? prev.game.status : '';
+    const status = next.game.status;
+    const stats = next.answerStats || {};
+
+    // 1. ALWAYS stop any previous music on state transition so tracks don't overlap!
+    if (status !== prevStatus) {
+      state.audio.stopMusic();
+
+      if (status === 'PRECOUNTDOWN') {
+        // Starts countdown SFX at 1.0 second offset
+        state.audio.playSfx(configValue('CountdownSFX', 'Music/321-countdown.mp3'), 1.0);
+      } else if (status === 'QUESTION') {
+        state.revealRequestedFor = '';
+        playMusicForStatus();
+      } else if (status === 'REVEAL') {
+        state.audio.playSfx(configValue('RevealSFX', 'Music/Kahoot Gong Sound Effect.mp3'));
+      } else if (status === 'LEADERBOARD') {
+        const leaderboardSfx = configValue('LeaderboardSFX', '');
+        if (leaderboardSfx) state.audio.playSfx(leaderboardSfx);
+        state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
+      } else if (status === 'FINISHED') {
+        state.audio.playSfx(configValue('ApplauseSFX', 'Music/u_xg7ssi08yr-crowd-cheering-379666.mp3'));
+        state.audio.playMusic(configValue('PodiumMusic', 'Music/Drum Roll (Ending Celebration) - Sound Effect _ ProSounds.mp3'), true);
+      } else if (status === 'LOBBY') {
+        playMusicForStatus();
+      }
+    }
+
+    // 2. Live Player Answer Pop SFX (plays concurrently during QUESTION state)
+    if (status === 'QUESTION' && prevStatus === 'QUESTION' && Number(stats.total || 0) > state.lastAnswerTotal) {
+      state.audio.playSfx(configValue('PopSFX', 'Music/soundreality-pop-sound-423716.mp3'));
+    }
+
+    state.lastAnswerTotal = Number(stats.total || 0);
+    state.lastStatus = status;
+  }
+
+  function playMusicForStatus() {
+    if (state.muted) return;
+    const status = state.snapshot && state.snapshot.game ? state.snapshot.game.status : '';
+    
+    if (status === 'LOBBY') {
+      return state.audio.playMusic(configValue('LobbyMusic', 'Music/Kahoot Lobby Music.mp3'), true);
+    }
+    if (status === 'QUESTION') {
+      const round = parseInt(state.snapshot.game.currentRound || '1', 10) || 1;
+      const key = 'ThinkMusic' + (((round - 1) % 3) + 1);
+      const defaults = [
+        'Music/Kahoot In Game Music (20 Second Countdown) 2_3.mp3',
+        'Music/Kahoot In Game Music (20 Second Countdown) 3_3.mp3',
+        'Music/Kahoot Music (30 Second Countdown) 2_3.mp3'
+      ];
+      return state.audio.playMusic(configValue(key, defaults[(round - 1) % 3]), true);
+    }
+    if (status === 'LEADERBOARD') {
+      return state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
+    }
+    if (status === 'FINISHED') {
+      return state.audio.playMusic(configValue('PodiumMusic', 'Music/Drum Roll (Ending Celebration) - Sound Effect _ ProSounds.mp3'), true);
+    }
+  }
+
+  // Robust configValue helper that ignores placeholders and encodes file paths safely
+  function configValue(keyName, defaultPath) {
+    const cfg = (state.snapshot && state.snapshot.config) || {};
+    const wanted = norm(keyName);
+    
+    const keys = Object.keys(cfg);
+    for (let k = 0; k < keys.length; k++) {
+      if (norm(keys[k]) === wanted) {
+        const val = String(cfg[keys[k]] || '').trim();
+        if (isValidAudioValue(val)) {
+          return encodeURI(val);
+        }
+      }
+    }
+    
+    return defaultPath ? encodeURI(defaultPath) : '';
+  }
+
+  function isValidAudioValue(val) {
+    if (!val) return false;
+    const lower = val.toLowerCase().trim();
+    if (
+      lower.includes('url') || 
+      lower.includes('sound fx') || 
+      lower.includes('music') || 
+      lower.includes('your_') ||
+      lower.includes('paste')
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function shape(letter) { return ({ A:'▲', B:'✕', C:'●', D:'■' })[letter] || letter; }
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#8b5cf6')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
+  function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
+  
+  function podiumPlace(p, medal, cls, id) { 
+    const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
+    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-medal">${medal}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
+  }
+
+  function playerUrl() {
+    const url = new URL('play.html', window.location.href);
+    url.searchParams.set('pin', state.snapshot && state.snapshot.game ? state.snapshot.game.gamePin : (BOOT.gamePin || ''));
+    return url.toString();
+  }
+
+  function fireConfetti() {
+    if (!window.confetti) return;
+    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff', '#f59e0b'] });
+    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .15, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 450);
+    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .85, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 800);
+  }
+
+  function showError(message) { els.error.textContent = String(message || 'Something went wrong.'); els.error.classList.remove('hidden'); }
+  function hideError() { els.error.classList.add('hidden'); }
+  function showNotice(message) { els.notice.textContent = message; els.notice.classList.remove('hidden'); setTimeout(function(){ els.notice.classList.add('hidden'); }, 3000); }
+  function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+  function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
+
+  window.addEventListener('load', init);
 })();
