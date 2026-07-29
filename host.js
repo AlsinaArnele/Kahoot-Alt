@@ -12,7 +12,7 @@
     lastAnswerTotal: 0,
     lastStatus: '',
     confettiFired: false,
-    finishedRendered: false, // Ensures podium animation only triggers once per finish
+    finishedRendered: false,
     muted: false,
     loading: false,
     snapshotQueued: false
@@ -383,7 +383,6 @@
       state.finishedRendered = true;
       state.confettiFired = false;
 
-      // Sequential reveal animations for places 3, 2, and 1
       setTimeout(function() {
         const el = document.getElementById('pod-3');
         if(el) { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }
@@ -442,16 +441,31 @@
     const prevStatus = prev && prev.game ? prev.game.status : '';
     const status = next.game.status;
     const stats = next.answerStats || {};
+
+    // 1. Precountdown Audio Trigger
+    if (status === 'PRECOUNTDOWN' && prevStatus !== 'PRECOUNTDOWN') {
+      state.audio.playSfx(configValue('CountdownSFX', 'PrecountdownSFX', 'Music/Kahoot Gong Sound Effect.mp3'));
+    }
+
     if (status === 'QUESTION' && prevStatus !== 'QUESTION') state.revealRequestedFor = '';
+    
     if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
       state.audio.playSfx(configValue('RevealSFX', 'Reveal Sound FX URL'));
     }
+
+    // 2. Mini Leaderboard Audio Trigger
+    if (status === 'LEADERBOARD' && prevStatus !== 'LEADERBOARD') {
+      state.audio.playSfx(configValue('LeaderboardSFX', 'Leaderboard SFX URL'));
+      state.audio.playMusic(configValue('LeaderboardMusic', 'Leaderboard Music URL'), false);
+    }
+
     if (status === 'FINISHED' && prevStatus !== 'FINISHED') {
       state.audio.playSfx(configValue('ApplauseSFX', 'Applause Sound FX URL'));
       state.audio.playMusic(configValue('PodiumMusic', 'Podium Music URL'), true);
-    } else if (status !== prevStatus) {
+    } else if (status !== prevStatus && status !== 'LEADERBOARD' && status !== 'PRECOUNTDOWN') {
       playMusicForStatus(true);
     }
+
     if (status === 'QUESTION' && prevStatus === 'QUESTION' && Number(stats.total || 0) > state.lastAnswerTotal) {
       state.audio.playSfx(configValue('PopSFX', 'Pop Sound FX URL'));
     }
@@ -463,13 +477,15 @@
     if (state.muted) return;
     const status = state.snapshot && state.snapshot.game ? state.snapshot.game.status : '';
     if (status === 'LOBBY') return state.audio.playMusic(configValue('LobbyMusic', 'Lobby Music URL'), true);
+    if (status === 'PRECOUNTDOWN') return state.audio.playMusic(configValue('CountdownMusic', 'Precountdown Music URL'), false);
     if (status === 'QUESTION') {
       const round = parseInt(state.snapshot.game.currentRound || '1', 10) || 1;
       const key = 'ThinkMusic' + (((round - 1) % 3) + 1);
       return state.audio.playMusic(configValue(key, 'Question Music ' + (((round - 1) % 3) + 1) + ' URL'), true);
     }
+    if (status === 'LEADERBOARD') return state.audio.playMusic(configValue('LeaderboardMusic', 'Leaderboard Music URL'), false);
     if (status === 'FINISHED') return state.audio.playMusic(configValue('PodiumMusic', 'Podium Music URL'), true);
-    if (force && ['REVEAL','LEADERBOARD','PRECOUNTDOWN'].indexOf(status) !== -1) state.audio.stopMusic();
+    if (force && ['REVEAL'].indexOf(status) !== -1) state.audio.stopMusic();
   }
 
   function configValue() {
