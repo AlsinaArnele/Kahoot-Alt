@@ -442,33 +442,39 @@
     const status = next.game.status;
     const stats = next.answerStats || {};
 
-    // 1. Precountdown Audio Trigger
+    // Dedicated Countdown Sound (3, 2, 1)
     if (status === 'PRECOUNTDOWN' && prevStatus !== 'PRECOUNTDOWN') {
-      state.audio.playSfx(configValue('CountdownSFX', 'PrecountdownSFX', 'Music/Kahoot Gong Sound Effect.mp3'));
+      state.audio.playSfx(configValue('CountdownSFX', '321Countdown'));
     }
 
-    if (status === 'QUESTION' && prevStatus !== 'QUESTION') state.revealRequestedFor = '';
+    if (status === 'QUESTION' && prevStatus !== 'QUESTION') {
+      state.revealRequestedFor = '';
+    }
     
+    // Dedicated Answer Reveal Sound
     if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
-      state.audio.playSfx(configValue('RevealSFX', 'Reveal Sound FX URL'));
+      state.audio.playSfx(configValue('RevealSFX'));
     }
 
-    // 2. Mini Leaderboard Audio Trigger
+    // Dedicated Mini-Leaderboard Sound / Music
     if (status === 'LEADERBOARD' && prevStatus !== 'LEADERBOARD') {
-      state.audio.playSfx(configValue('LeaderboardSFX', 'Leaderboard SFX URL'));
-      state.audio.playMusic(configValue('LeaderboardMusic', 'Leaderboard Music URL'), false);
+      state.audio.playSfx(configValue('LeaderboardSFX'));
+      state.audio.playMusic(configValue('LeaderboardMusic'), false);
     }
 
+    // Final Podium & Victory
     if (status === 'FINISHED' && prevStatus !== 'FINISHED') {
-      state.audio.playSfx(configValue('ApplauseSFX', 'Applause Sound FX URL'));
-      state.audio.playMusic(configValue('PodiumMusic', 'Podium Music URL'), true);
-    } else if (status !== prevStatus && status !== 'LEADERBOARD' && status !== 'PRECOUNTDOWN') {
+      state.audio.playSfx(configValue('ApplauseSFX'));
+      state.audio.playMusic(configValue('PodiumMusic'), true);
+    } else if (status !== prevStatus && status !== 'LEADERBOARD' && status !== 'PRECOUNTDOWN' && status !== 'REVEAL') {
       playMusicForStatus(true);
     }
 
+    // Live Player Answer Pop SFX
     if (status === 'QUESTION' && prevStatus === 'QUESTION' && Number(stats.total || 0) > state.lastAnswerTotal) {
-      state.audio.playSfx(configValue('PopSFX', 'Pop Sound FX URL'));
+      state.audio.playSfx(configValue('PopSFX'));
     }
+
     state.lastAnswerTotal = Number(stats.total || 0);
     state.lastStatus = status;
   }
@@ -476,28 +482,24 @@
   function playMusicForStatus(force) {
     if (state.muted) return;
     const status = state.snapshot && state.snapshot.game ? state.snapshot.game.status : '';
-    if (status === 'LOBBY') return state.audio.playMusic(configValue('LobbyMusic', 'Lobby Music URL'), true);
-    if (status === 'PRECOUNTDOWN') return state.audio.playMusic(configValue('CountdownMusic', 'Precountdown Music URL'), false);
+    
+    if (status === 'LOBBY') {
+      return state.audio.playMusic(configValue('LobbyMusic'), true);
+    }
     if (status === 'QUESTION') {
       const round = parseInt(state.snapshot.game.currentRound || '1', 10) || 1;
       const key = 'ThinkMusic' + (((round - 1) % 3) + 1);
-      return state.audio.playMusic(configValue(key, 'Question Music ' + (((round - 1) % 3) + 1) + ' URL'), true);
+      return state.audio.playMusic(configValue(key), true);
     }
-    if (status === 'LEADERBOARD') return state.audio.playMusic(configValue('LeaderboardMusic', 'Leaderboard Music URL'), false);
-    if (status === 'FINISHED') return state.audio.playMusic(configValue('PodiumMusic', 'Podium Music URL'), true);
-    if (force && ['REVEAL'].indexOf(status) !== -1) state.audio.stopMusic();
-  }
-
-  function configValue() {
-    const cfg = (state.snapshot && state.snapshot.config) || {};
-    for (let i = 0; i < arguments.length; i++) {
-      const wanted = norm(arguments[i]);
-      const keys = Object.keys(cfg);
-      for (let k = 0; k < keys.length; k++) {
-        if (norm(keys[k]) === wanted && cfg[keys[k]]) return cfg[keys[k]];
-      }
+    if (status === 'LEADERBOARD') {
+      return state.audio.playMusic(configValue('LeaderboardMusic'), false);
     }
-    return '';
+    if (status === 'FINISHED') {
+      return state.audio.playMusic(configValue('PodiumMusic'), true);
+    }
+    if (force && ['REVEAL', 'PRECOUNTDOWN'].indexOf(status) !== -1) {
+      state.audio.stopMusic();
+    }
   }
 
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
