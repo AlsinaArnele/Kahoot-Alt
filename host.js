@@ -442,37 +442,37 @@
     const status = next.game.status;
     const stats = next.answerStats || {};
 
-    // Dedicated Countdown Sound (3, 2, 1)
+    // 1. Dedicated Countdown Sound (3, 2, 1) with fallback
     if (status === 'PRECOUNTDOWN' && prevStatus !== 'PRECOUNTDOWN') {
-      state.audio.playSfx(configValue('CountdownSFX', '321Countdown'));
+      state.audio.playSfx(configValue('CountdownSFX', 'Music/321-countdown.mp3'));
     }
 
     if (status === 'QUESTION' && prevStatus !== 'QUESTION') {
       state.revealRequestedFor = '';
     }
     
-    // Dedicated Answer Reveal Sound
+    // 2. Answer Reveal Sound with fallback
     if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
-      state.audio.playSfx(configValue('RevealSFX'));
+      state.audio.playSfx(configValue('RevealSFX', 'Music/Kahoot Gong Sound Effect.mp3'));
     }
 
-    // Dedicated Mini-Leaderboard Sound / Music
+    // 3. Mini-Leaderboard Music/SFX with fallback
     if (status === 'LEADERBOARD' && prevStatus !== 'LEADERBOARD') {
-      state.audio.playSfx(configValue('LeaderboardSFX'));
-      state.audio.playMusic(configValue('LeaderboardMusic'), false);
+      state.audio.playSfx(configValue('LeaderboardSFX', ''));
+      state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
     }
 
-    // Final Podium & Victory
+    // 4. Final Podium & Victory
     if (status === 'FINISHED' && prevStatus !== 'FINISHED') {
-      state.audio.playSfx(configValue('ApplauseSFX'));
-      state.audio.playMusic(configValue('PodiumMusic'), true);
+      state.audio.playSfx(configValue('ApplauseSFX', 'Music/u_xg7ssi08yr-crowd-cheering-379666.mp3'));
+      state.audio.playMusic(configValue('PodiumMusic', 'Music/Drum Roll (Ending Celebration) - Sound Effect _ ProSounds.mp3'), true);
     } else if (status !== prevStatus && status !== 'LEADERBOARD' && status !== 'PRECOUNTDOWN' && status !== 'REVEAL') {
       playMusicForStatus(true);
     }
 
-    // Live Player Answer Pop SFX
+    // 5. Live Player Answer Pop SFX
     if (status === 'QUESTION' && prevStatus === 'QUESTION' && Number(stats.total || 0) > state.lastAnswerTotal) {
-      state.audio.playSfx(configValue('PopSFX'));
+      state.audio.playSfx(configValue('PopSFX', 'Music/soundreality-pop-sound-423716.mp3'));
     }
 
     state.lastAnswerTotal = Number(stats.total || 0);
@@ -484,22 +484,43 @@
     const status = state.snapshot && state.snapshot.game ? state.snapshot.game.status : '';
     
     if (status === 'LOBBY') {
-      return state.audio.playMusic(configValue('LobbyMusic'), true);
+      return state.audio.playMusic(configValue('LobbyMusic', 'Music/Kahoot Lobby Music.mp3'), true);
     }
     if (status === 'QUESTION') {
       const round = parseInt(state.snapshot.game.currentRound || '1', 10) || 1;
       const key = 'ThinkMusic' + (((round - 1) % 3) + 1);
-      return state.audio.playMusic(configValue(key), true);
+      const defaults = [
+        'Music/Kahoot In Game Music (20 Second Countdown) 2_3.mp3',
+        'Music/Kahoot In Game Music (20 Second Countdown) 3_3.mp3',
+        'Music/Kahoot Music (30 Second Countdown) 2_3.mp3'
+      ];
+      return state.audio.playMusic(configValue(key, defaults[(round - 1) % 3]), true);
     }
     if (status === 'LEADERBOARD') {
-      return state.audio.playMusic(configValue('LeaderboardMusic'), false);
+      return state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
     }
     if (status === 'FINISHED') {
-      return state.audio.playMusic(configValue('PodiumMusic'), true);
+      return state.audio.playMusic(configValue('PodiumMusic', 'Music/Drum Roll (Ending Celebration) - Sound Effect _ ProSounds.mp3'), true);
     }
     if (force && ['REVEAL', 'PRECOUNTDOWN'].indexOf(status) !== -1) {
       state.audio.stopMusic();
     }
+  }
+
+  // Updated fail-safe configValue helper
+  function configValue(keyName, defaultPath) {
+    const cfg = (state.snapshot && state.snapshot.config) || {};
+    const wanted = norm(keyName);
+    
+    const keys = Object.keys(cfg);
+    for (let k = 0; k < keys.length; k++) {
+      if (norm(keys[k]) === wanted && cfg[keys[k]]) {
+        return cfg[keys[k]];
+      }
+    }
+    
+    // Return the default local file path if DB key is empty or missing
+    return defaultPath || '';
   }
 
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
