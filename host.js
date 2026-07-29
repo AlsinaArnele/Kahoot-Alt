@@ -106,7 +106,7 @@
       state.muted = !state.muted;
       state.audio.setMuted(state.muted);
       els.muteBtn.textContent = state.muted ? '🔇 Muted' : '🔊 Audio';
-      if (!state.muted) playMusicForStatus(true);
+      if (!state.muted) playMusicForStatus();
     });
     els.refreshBtn.addEventListener('click', loadSnapshot);
 
@@ -444,12 +444,11 @@
     const status = next.game.status;
     const stats = next.answerStats || {};
 
-    // 1. ALWAYS stop any previous music on state transition so tracks don't overlap!
+    // Cut off ALL playing audio (both music AND active SFX) on state change!
     if (status !== prevStatus) {
-      state.audio.stopMusic();
+      state.audio.stopAll();
 
       if (status === 'PRECOUNTDOWN') {
-        // Starts countdown SFX at 1.0 second offset
         state.audio.playSfx(configValue('CountdownSFX', 'Music/321-countdown.mp3'), 1.0);
       } else if (status === 'QUESTION') {
         state.revealRequestedFor = '';
@@ -468,7 +467,7 @@
       }
     }
 
-    // 2. Live Player Answer Pop SFX (plays concurrently during QUESTION state)
+    // Live Player Answer Pop SFX
     if (status === 'QUESTION' && prevStatus === 'QUESTION' && Number(stats.total || 0) > state.lastAnswerTotal) {
       state.audio.playSfx(configValue('PopSFX', 'Music/soundreality-pop-sound-423716.mp3'));
     }
@@ -502,7 +501,6 @@
     }
   }
 
-  // Robust configValue helper that ignores placeholders and encodes file paths safely
   function configValue(keyName, defaultPath) {
     const cfg = (state.snapshot && state.snapshot.config) || {};
     const wanted = norm(keyName);
