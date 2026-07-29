@@ -1,4 +1,3 @@
-
 (function () {
   class QuizArenaAudio {
     constructor() {
@@ -42,10 +41,10 @@
       this.destroyYouTubePlayer();
     }
 
-    playMusic(value, loop) {
+    playMusic(value, loop, startTime) {
       const media = this.parseMedia(value);
       if (!media.value || !this.unlocked || this.muted) return;
-      if (media.type === 'youtube') return this.playYouTube(media.value, loop !== false);
+      if (media.type === 'youtube') return this.playYouTube(media.value, loop !== false, startTime);
       this.stopMusic();
       try {
         const audio = new Audio(media.value);
@@ -53,6 +52,9 @@
         audio.volume = 0.55;
         audio.muted = this.muted;
         audio.preload = 'auto';
+        if (startTime && !isNaN(startTime)) {
+          audio.currentTime = startTime;
+        }
         audio.addEventListener('error', function () { console.error('Music source failed:', media.value, audio.error); });
         audio.play().catch(function (err) { console.error('Music playback failed:', media.value, err); });
         this.currentAudio = audio;
@@ -61,7 +63,7 @@
       }
     }
 
-    playSfx(value) {
+    playSfx(value, startTime) {
       const media = this.parseMedia(value);
       if (!media.value || !this.unlocked || this.muted) return;
       if (media.type === 'youtube') return;
@@ -69,6 +71,9 @@
         const audio = new Audio(media.value);
         audio.volume = 0.85;
         audio.preload = 'auto';
+        if (startTime && !isNaN(startTime)) {
+          audio.currentTime = startTime;
+        }
         audio.addEventListener('error', function () { console.error('SFX source failed:', media.value, audio.error); });
         audio.play().catch(function (err) { console.error('SFX playback failed:', media.value, err); });
       } catch (err) {
@@ -140,7 +145,7 @@
         if (self.pendingYouTube) {
           const next = self.pendingYouTube;
           self.pendingYouTube = null;
-          self.playYouTube(next.videoId, next.loop);
+          self.playYouTube(next.videoId, next.loop, next.startTime);
         }
       };
     }
@@ -180,12 +185,12 @@
       }
     }
 
-    playYouTube(videoId, loop) {
+    playYouTube(videoId, loop, startTime) {
       const cleanVideoId = this.extractYouTubeId(videoId) || String(videoId || '').trim();
       if (!cleanVideoId || !this.unlocked || this.muted) return;
       this.stopMusic();
       if (!this.ytReady || !(window.YT && window.YT.Player)) {
-        this.pendingYouTube = { videoId: cleanVideoId, loop: loop };
+        this.pendingYouTube = { videoId: cleanVideoId, loop: loop, startTime: startTime };
         this.ensureYouTubeApi();
         return;
       }
@@ -202,6 +207,7 @@
             disablekb: 1,
             playsinline: 1,
             rel: 0,
+            start: startTime || 0,
             loop: loop ? 1 : 0,
             playlist: loop ? cleanVideoId : undefined
           },
@@ -210,6 +216,7 @@
               try {
                 self.muted ? event.target.mute() : event.target.unMute();
                 event.target.setVolume(55);
+                if (startTime) event.target.seekTo(startTime);
                 event.target.playVideo();
               } catch (err) {
                 console.error('YouTube playback failed:', err);
@@ -218,7 +225,7 @@
             onStateChange: function(event) {
               if (loop && window.YT && event.data === YT.PlayerState.ENDED) {
                 try {
-                  event.target.seekTo(0);
+                  event.target.seekTo(startTime || 0);
                   event.target.playVideo();
                 } catch (err) {}
               }
