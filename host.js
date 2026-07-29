@@ -176,7 +176,9 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: 'game_id=eq.' + state.gameId }, debounceSnapshot)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: 'game_id=eq.' + state.gameId }, function(payload){
         const eventType = payload && payload.new ? payload.new.event_type : '';
-        if (eventType === 'ANSWER') state.audio.playSfx(configValue('PopSFX', 'Pop Sound FX URL'));
+        if (eventType === 'ANSWER') {
+          state.audio.playSfx(configValue('PopSFX', 'Music/soundreality-pop-sound-423716.mp3'));
+        }
         debounceSnapshot();
       })
       .subscribe(function(status){
@@ -442,7 +444,7 @@
     const status = next.game.status;
     const stats = next.answerStats || {};
 
-    // 1. Dedicated Countdown Sound (3, 2, 1) with fallback
+    // 1. Countdown Sound (3, 2, 1)
     if (status === 'PRECOUNTDOWN' && prevStatus !== 'PRECOUNTDOWN') {
       state.audio.playSfx(configValue('CountdownSFX', 'Music/321-countdown.mp3'));
     }
@@ -451,12 +453,12 @@
       state.revealRequestedFor = '';
     }
     
-    // 2. Answer Reveal Sound with fallback
+    // 2. Answer Reveal Sound
     if (status === 'REVEAL' && prevStatus !== 'REVEAL') {
       state.audio.playSfx(configValue('RevealSFX', 'Music/Kahoot Gong Sound Effect.mp3'));
     }
 
-    // 3. Mini-Leaderboard Music/SFX with fallback
+    // 3. Mini-Leaderboard Music/SFX
     if (status === 'LEADERBOARD' && prevStatus !== 'LEADERBOARD') {
       state.audio.playSfx(configValue('LeaderboardSFX', ''));
       state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
@@ -507,20 +509,38 @@
     }
   }
 
-  // Updated fail-safe configValue helper
+  // Robust configValue helper that ignores placeholders and encodes file paths safely
   function configValue(keyName, defaultPath) {
     const cfg = (state.snapshot && state.snapshot.config) || {};
     const wanted = norm(keyName);
     
     const keys = Object.keys(cfg);
     for (let k = 0; k < keys.length; k++) {
-      if (norm(keys[k]) === wanted && cfg[keys[k]]) {
-        return cfg[keys[k]];
+      if (norm(keys[k]) === wanted) {
+        const val = String(cfg[keys[k]] || '').trim();
+        if (isValidAudioValue(val)) {
+          return encodeURI(val);
+        }
       }
     }
     
-    // Return the default local file path if DB key is empty or missing
-    return defaultPath || '';
+    return defaultPath ? encodeURI(defaultPath) : '';
+  }
+
+  function isValidAudioValue(val) {
+    if (!val) return false;
+    const lower = val.toLowerCase().trim();
+    // Rejects placeholder text from database/spreadsheets
+    if (
+      lower.includes('url') || 
+      lower.includes('sound fx') || 
+      lower.includes('music') || 
+      lower.includes('your_') ||
+      lower.includes('paste')
+    ) {
+      return false;
+    }
+    return true;
   }
 
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
