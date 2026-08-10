@@ -57,9 +57,9 @@
     const saved = readRoomCredentials();
     els.stage.innerHTML = `
       <div class="grid host-grid">
-        <section class="card join-card" style="width:100%">
-          <h1 class="display" style="font-size:54px;margin:0 0 10px">Open a Room</h1>
-          <p class="subtle" style="margin-bottom:18px">Paste the current Game PIN and Host Token for this Supabase room. They stay in your browser only.</p>
+        <section class="glass-panel join-card">
+          <h1 class="display" style="font-size:38px;margin:0 0 10px">Nexus Arena</h1>
+          <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live to Supabase.</p>
           <form id="roomForm">
             <label class="subtle" for="roomPinInput">Game PIN</label>
             <input id="roomPinInput" class="input" maxlength="20" autocomplete="off" placeholder="123456" value="${escapeAttr(saved.gamePin || '')}">
@@ -68,19 +68,12 @@
             <button class="btn big" style="width:100%;margin-top:12px" type="submit">Load Arena</button>
           </form>
         </section>
-        <aside class="card">
-          <h2 style="margin-top:0; color:var(--primary2)">Player link</h2>
-          <p class="subtle">Once the room loads, the QR code will point to <code>play.html?pin=YOUR_PIN</code>.</p>
-          <p class="subtle">GitHub Pages hosts the UI only; Supabase stores the live game state.</p>
-        </aside>
       </div>`;
-    const form = document.getElementById('roomForm');
-    form.addEventListener('submit', function(e) {
+    document.getElementById('roomForm').addEventListener('submit', function(e) {
       e.preventDefault();
       const gamePin = document.getElementById('roomPinInput').value.trim();
       const hostToken = document.getElementById('roomTokenInput').value.trim();
-      if (!gamePin) return showError('Game PIN is required.');
-      if (!hostToken) return showError('Host Token is required.');
+      if (!gamePin || !hostToken) return showError('PIN and Host Token are required.');
       BOOT.gamePin = gamePin;
       BOOT.hostToken = hostToken;
       saveRoomCredentials({ gamePin, hostToken });
@@ -111,7 +104,7 @@
     els.refreshBtn.addEventListener('click', loadSnapshot);
 
     if (!BOOT.supabaseUrl || !BOOT.anonKey) {
-      showError('Missing Supabase URL or anon key. Check config.js.');
+      showError('Missing Supabase URL or anon key in config.js.');
       return;
     }
     const creds = readRoomCredentials();
@@ -182,7 +175,7 @@
         debounceSnapshot();
       })
       .subscribe(function(status){
-        if (status === 'SUBSCRIBED') showNotice('Realtime connected. Live gameplay is running directly on Supabase.');
+        if (status === 'SUBSCRIBED') showNotice('Realtime active.');
       });
   }
 
@@ -196,9 +189,7 @@
 
   function startTimerLoop() {
     clearInterval(state.timerInterval);
-    state.timerInterval = setInterval(function(){
-      updateLiveTimer();
-    }, 160);
+    state.timerInterval = setInterval(updateLiveTimer, 160);
     updateLiveTimer();
   }
 
@@ -224,17 +215,40 @@
       const started = new Date(g.questionStartedAt || snap.serverTime).getTime();
       const elapsed = Math.max(0, (nowServerMs() - started) / 1000);
       const remaining = Math.max(0, limit - elapsed);
-      const pct = Math.max(0, Math.min(100, (remaining / limit) * 100));
       const sec = Math.ceil(remaining);
       const timer = document.getElementById('timerNumber');
-      const ring = document.getElementById('timerRing');
-      if (timer) timer.textContent = String(sec);
-      if (ring) ring.style.setProperty('--pct', pct + '%');
+      const timerCircle = document.getElementById('timerCircle');
+      if (timer) timer.textContent = String(sec).padStart(2, '0');
+      if (timerCircle) {
+        if (sec <= 5) {
+          timerCircle.classList.add('warning');
+        } else {
+          timerCircle.classList.remove('warning');
+        }
+      }
       if (remaining <= 0.05 && state.revealRequestedFor !== 'reveal-' + g.currentRound) {
         state.revealRequestedFor = 'reveal-' + g.currentRound;
         revealRound('timer');
       }
     }
+  }
+
+  function renderHeader() {
+    const snap = state.snapshot;
+    if (!snap || !snap.game) return '';
+    const players = snap.players || [];
+    return `
+      <div class="topbar">
+        <div class="brand">Nexus Arena</div>
+        <div class="pin-badge">
+          <span class="subtle" style="text-transform:uppercase;">PIN:</span>
+          <span style="font-weight:800;color:var(--secondary-container);letter-spacing:0.1em">${escapeHtml(snap.game.gamePin)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-weight:700;">
+          <span class="material-symbols-outlined" style="color:var(--secondary-container)">group</span>
+          <span>${players.length}</span>
+        </div>
+      </div>`;
   }
 
   function render() {
@@ -247,30 +261,32 @@
     if (status === 'REVEAL') return renderQuestion(true);
     if (status === 'LEADERBOARD') return renderLeaderboard(false);
     if (status === 'FINISHED') return renderFinished();
-    els.stage.innerHTML = '<div class="card"><h1>Unknown status</h1></div>';
+    els.stage.innerHTML = '<div class="glass-panel"><h1>Unknown status</h1></div>';
   }
 
   function renderLobby() {
     const players = state.snapshot.players || [];
     const playUrl = playerUrl();
-    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1fYqyPdvncX8qrOrFT34X61uooLTeVbWD&sz=s1000';
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
 
     els.stage.innerHTML = `
+      ${renderHeader()}
       <div class="grid host-grid">
-        <section class="card pin-box">
-          <div class="pin-label">Game PIN</div>
+        <section class="glass-panel pin-box">
+          <div style="text-transform:uppercase;color:var(--secondary-container);font-weight:800;">Game PIN</div>
           <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
           <div class="qr-wrap">
-            <img src="${qrImageUrl}" alt="Join Game QR Code" style="width:180px; height:180px; object-fit:contain; display:block;" />
+            <img src="${qrImageUrl}" alt="Join Game QR Code" />
           </div>
-          <div class="actions" style="justify-content:center;margin-top:22px">
+          <p class="subtle">Join at <strong>${escapeHtml(playUrl)}</strong></p>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
             <button class="btn big" data-action="advance">Start Game</button>
-            <button class="btn secondary" data-action="reset">Reset room</button>
+            <button class="btn secondary" data-action="reset">Reset</button>
           </div>
         </section>
-        <aside class="card">
-          <h2 style="margin-top:0; color:var(--primary2)">Joined Players <span class="subtle">(${players.length})</span></h2>
-          <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">No players yet. Gates are open.</p>'}</div>
+        <aside class="glass-panel">
+          <h2 style="margin-top:0;color:var(--secondary-container);">Players Joined (${players.length})</h2>
+          <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">Waiting for players...</p>'}</div>
         </aside>
       </div>`;
     bindActions();
@@ -279,15 +295,16 @@
   function renderPrecountdown() {
     const players = state.snapshot.players || [];
     els.stage.innerHTML = `
-      <section class="card" style="text-align:center;min-height:68vh;display:grid;place-items:center">
+      ${renderHeader()}
+      <section class="glass-panel" style="text-align:center;min-height:60vh;display:grid;place-items:center">
         <div>
-          <p class="status-pill" style="margin:auto auto 18px;width:max-content"><span class="status-dot"></span>GET READY</p>
-          <h1 class="display">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
-          <div id="precountdownNumber" class="pin" style="font-size:clamp(110px,20vw,280px)">3</div>
-          <p class="subtle" style="font-size:22px">${players.length} players in the arena</p>
-          <div class="actions" style="justify-content:center;margin-top:20px">
-            <button class="btn secondary" data-action="advance">Start now</button>
-            <button class="btn danger" data-action="reveal">Skip / Reveal</button>
+          <span class="status-pill"><span class="status-dot"></span>GET READY</span>
+          <h1 class="display" style="margin-top:16px;">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
+          <div id="precountdownNumber" class="pin" style="font-size:clamp(100px,18vw,240px)">3</div>
+          <p class="subtle" style="font-size:20px;">${players.length} players connected</p>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
+            <button class="btn secondary" data-action="advance">Start Now</button>
+            <button class="btn danger" data-action="reveal">Skip</button>
           </div>
         </div>
       </section>`;
@@ -300,34 +317,44 @@
     const stats = snap.answerStats || { A:0, B:0, C:0, D:0, total:0 };
     const active = Number(snap.activePlayerCount || 0);
     const correct = String(q.correct || '').toUpperCase();
+    
     const answers = ['A','B','C','D'].map(function(letter){
       const text = q['option' + letter] || q['option' + letter.toLowerCase()] || '';
       const cls = revealed ? (letter === correct ? 'correct' : 'dim') : '';
-      return `<div class="answer-card ${letter} ${cls}"><div class="shape">${shape(letter)}</div><div>${escapeHtml(text)}</div></div>`;
+      return `
+        <div class="answer-card ${letter} ${cls}">
+          <div class="shape">${svgShape(letter)}</div>
+          <div>${escapeHtml(text)}</div>
+        </div>`;
     }).join('');
 
     const distribution = revealed ? renderDistribution(stats, correct) : '';
-    const meta = [q.category, q.difficulty, q.doublePoints ? 'DOUBLE POINTS' : ''].filter(Boolean).map(escapeHtml).join(' • ');
+
     els.stage.innerHTML = `
+      ${renderHeader()}
       <div class="grid host-grid">
-        <section class="card">
-          <div style="display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <section class="glass-panel">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
             <span class="status-pill"><span class="status-dot"></span>Round ${escapeHtml(snap.game.currentRound || '')}</span>
-            <span class="subtle">${meta}</span>
+            <span class="subtle">${escapeHtml(q.category || '')}</span>
           </div>
           <h1 class="question-title">${escapeHtml(q.question || 'Question')}</h1>
           ${q.imageUrl ? `<img class="question-image" src="${escapeAttr(q.imageUrl)}" alt="Question image">` : ''}
           <div class="answers">${answers}</div>
-          ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:24px"><strong>${q.explanation ? 'Explanation' : 'Fun fact'}:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
+          ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:20px;"><strong>Explanation:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
         </section>
-        <aside class="card">
-          ${revealed ? '<h2 style="margin-top:0; color:var(--primary)">Answer Reveal</h2>' : '<h2 style="margin-top:0; color:var(--primary)">Live Responses</h2>'}
+        <aside class="glass-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           ${revealed ? distribution : `
-            <div id="timerRing" class="timer-ring"><div class="timer-ring-inner"><span id="timerNumber">${Number(snap.game.questionTimerLimit || 20)}</span></div></div>
-            <p class="counter" style="margin-top:24px">${Number(stats.total || 0)} / ${active} answered</p>
+            <div class="timer-container">
+              <div id="timerCircle" class="timer-circle">
+                <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:white">${Number(snap.game.questionTimerLimit || 20)}</span>
+                <span style="font-size:11px;letter-spacing:0.1em;margin-top:4px;color:var(--muted)">SECONDS</span>
+              </div>
+              <p style="margin-top:20px;font-weight:800;color:var(--secondary-container)">${Number(stats.total || 0)} / ${active} answered</p>
+            </div>
           `}
-          <div class="actions" style="justify-content:center;margin-top:32px">
-            ${revealed ? '<button class="btn big" data-action="advance">Show leaderboard</button>' : '<button class="btn danger big" data-action="reveal">Skip / Reveal</button>'}
+          <div style="margin-top:24px;width:100%">
+            ${revealed ? '<button class="btn big" style="width:100%" data-action="advance">Leaderboard</button>' : '<button class="btn danger" style="width:100%" data-action="reveal">Skip / Reveal</button>'}
           </div>
         </aside>
       </div>`;
@@ -341,9 +368,9 @@
       const width = Math.round((count / max) * 100);
       const isCorrect = letter === correct;
       return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}">
-        <div class="answer-card ${letter}" style="min-height:44px;padding:6px;border-radius:12px;display:grid;place-items:center;grid-template-columns:1fr;box-shadow:none;">${shape(letter)}</div>
+        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;">${svgShape(letter)}</div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
-        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--primary2);' : ''}">${count}</div>
+        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--secondary-container);' : ''}">${count}</div>
       </div>`;
     }).join('');
   }
@@ -351,10 +378,11 @@
   function renderLeaderboard(finalMode) {
     const rows = state.snapshot.leaderboard || [];
     els.stage.innerHTML = `
-      <section class="card" style="max-width:850px;margin:0 auto">
-        <h1 class="display" style="text-align:center;margin-bottom:22px">Leaderboard</h1>
+      ${renderHeader()}
+      <section class="glass-panel" style="max-width:800px;margin:0 auto">
+        <h1 class="display" style="text-align:center;margin-bottom:20px">Leaderboard</h1>
         ${rows.map(scoreRow).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
-        <div class="actions" style="justify-content:center;margin-top:32px">
+        <div style="display:flex;justify-content:center;margin-top:24px">
           <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next Question'}</button>
         </div>
       </section>`;
@@ -367,17 +395,18 @@
     if (!state.finishedRendered) {
       const podium = [rows[1], rows[0], rows[2]];
       els.stage.innerHTML = `
-        <section class="card" style="max-width:900px;margin:0 auto;text-align:center">
+        ${renderHeader()}
+        <section class="glass-panel" style="max-width:850px;margin:0 auto;text-align:center">
           <h1 class="display">Final Podium</h1>
           <div class="podium">
             ${podiumPlace(podium[0], '🥈', 'second', 'pod-2')}
             ${podiumPlace(podium[1], '🏆', 'first', 'pod-1')}
             ${podiumPlace(podium[2], '🥉', 'third', 'pod-3')}
           </div>
-          <h2 style="margin-top:40px; color:var(--primary);">Top 10</h2>
+          <h2 style="margin-top:32px; color:var(--secondary-container);">Top 10</h2>
           <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
-          <div class="actions" style="justify-content:center;margin-top:32px">
-            <button class="btn danger" data-action="reset">Reset room</button>
+          <div style="display:flex;justify-content:center;margin-top:28px">
+            <button class="btn danger" data-action="reset">Reset Arena</button>
           </div>
         </section>`;
       bindActions();
@@ -443,7 +472,6 @@
     const status = next.game.status;
     const stats = next.answerStats || {};
 
-    // Cut off ALL playing audio (both music AND active SFX) on state change!
     if (status !== prevStatus) {
       state.audio.stopAll();
 
@@ -466,7 +494,6 @@
       }
     }
 
-    // Live Player Answer Pop SFX
     if (status === 'QUESTION' && prevStatus === 'QUESTION' && Number(stats.total || 0) > state.lastAnswerTotal) {
       state.audio.playSfx(configValue('PopSFX', 'Music/soundreality-pop-sound-423716.mp3'));
     }
@@ -532,9 +559,16 @@
     return true;
   }
 
+  function svgShape(letter) {
+    if (letter === 'A') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 22h20L12 2z"/></svg>`;
+    if (letter === 'B') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
+    if (letter === 'C') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>`;
+    if (letter === 'D') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+    return letter;
+  }
+
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-  function shape(letter) { return ({ A:'▲', B:'✕', C:'●', D:'■' })[letter] || letter; }
-  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#8b5cf6')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#cbbeff')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
   function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
   
   function podiumPlace(p, medal, cls, id) { 
@@ -550,9 +584,7 @@
 
   function fireConfetti() {
     if (!window.confetti) return;
-    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff', '#f59e0b'] });
-    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .15, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 450);
-    setTimeout(function(){ confetti({ particleCount: 140, spread: 120, origin: { x: .85, y: .7 }, colors: ['#8b5cf6', '#7c3aed', '#ffffff'] }); }, 800);
+    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#00f1fe', '#cbbeff', '#ffffff', '#fface8'] });
   }
 
   function showError(message) { els.error.textContent = String(message || 'Something went wrong.'); els.error.classList.remove('hidden'); }
