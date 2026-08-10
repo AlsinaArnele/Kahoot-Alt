@@ -19,28 +19,12 @@
   const stage = document.getElementById('playerStage');
   const errorEl = document.getElementById('playerError');
 
-  // List of restricted keywords and phrases
   const RESTRICTED_TERMS = [
-    'resignation',
-    'resign',
-    'tutam',
-    'twoterms',
-    'twoterm',
-    'rutomustgo',
-    'zakayo',
-    'fuck',
-    'shit',
-    'bitch',
-    'asshole',
-    'cunt',
-    'bastard',
-    'dick',
-    'pussy'
+    'resignation','resign','tutam','twoterms','twoterm','rutomustgo','zakayo',
+    'fuck','shit','bitch','asshole','cunt','bastard','dick','pussy'
   ];
 
-  // Helper function to detect blocked keywords
   function isRestrictedNickname(nickname) {
-    // Strips out all spaces and special characters so bypasses like "T_U_T_A_M" or "R.e.s.i.g.n" are caught
     const cleanNick = String(nickname || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     return RESTRICTED_TERMS.some(term => cleanNick.includes(term));
   }
@@ -56,7 +40,7 @@
 
   function init() {
     if (!BOOT.supabaseUrl || !BOOT.anonKey) {
-      showError('Missing Supabase URL or anon key. Check config.js.');
+      showError('Missing Supabase credentials in config.js.');
       renderJoin();
       return;
     }
@@ -82,15 +66,15 @@
 
   function renderJoin() {
     stage.innerHTML = `
-      <div class="join-card">
-        <h1 class="display" style="font-size:52px;margin:0 0 8px;text-align:center">Join the Arena</h1>
-        <p class="subtle" style="text-align:center;margin-bottom:22px">Enter the Game PIN and your stadium nickname.</p>
+      <div class="glass-panel join-card">
+        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--secondary-container)">Nexus Arena</h1>
+        <p class="subtle" style="text-align:center;margin-bottom:20px">Enter Game PIN and your stadium nickname.</p>
         <form id="joinForm">
           <label class="subtle" for="pinInput">Game PIN</label>
           <input id="pinInput" class="input" inputmode="numeric" autocomplete="one-time-code" value="${escapeAttr(BOOT.gamePin || state.gamePin || getUrlPin() || '')}" maxlength="12" placeholder="123456">
           <label class="subtle" for="nickInput">Nickname</label>
           <input id="nickInput" class="input" maxlength="20" autocomplete="nickname" value="${escapeAttr(state.nickname || '')}" placeholder="Your name">
-          <button class="btn big" style="width:100%" type="submit">Enter Stadium</button>
+          <button class="btn big" style="width:100%" type="submit">Enter Arena</button>
         </form>
       </div>`;
     document.getElementById('joinForm').addEventListener('submit', join);
@@ -101,16 +85,12 @@
     hideError();
     const pin = document.getElementById('pinInput').value.trim();
     const nick = document.getElementById('nickInput').value.trim();
-    if (!pin) return showError('Game PIN is required.');
-    if (!nick) return showError('Nickname is required.');
+    if (!pin || !nick) return showError('PIN and Nickname are required.');
     if (nick.length > 20) return showError('Nickname must be 20 characters or fewer.');
-    
-    if (isRestrictedNickname(nick)) {
-      return showError('Please choose an appropriate nickname.');
-    }
+    if (isRestrictedNickname(nick)) return showError('Please choose an appropriate nickname.');
 
     stage.querySelector('button').disabled = true;
-    stage.querySelector('button').innerHTML = '<span class="loading"></span> Joining';
+    stage.querySelector('button').innerHTML = 'Joining...';
     try {
       const result = await rpc('qa_join_game', { p_game_pin: pin, p_nickname: nick, p_existing_player_id: '' });
       state.playerId = result.player.playerId;
@@ -198,8 +178,6 @@
     const remaining = Math.max(0, limit - ((nowServerMs() - started) / 1000));
     const timer = document.getElementById('playerTimer');
     if (timer) timer.textContent = String(Math.ceil(remaining));
-    const ring = document.getElementById('playerTimerRing');
-    if (ring) ring.style.setProperty('--pct', Math.max(0, Math.min(100, remaining / limit * 100)) + '%');
   }
 
   function render() {
@@ -216,12 +194,11 @@
   function renderWaiting(status) {
     const p = state.snapshot.player;
     stage.innerHTML = `
-      <div class="join-card player-status">
+      <div class="glass-panel join-card" style="text-align:center;">
         ${scoreBadge(p)}
-        <h1 class="display" style="font-size:48px;margin:0 0 12px">You're in!</h1>
-        <p class="subtle">Check the stadium jumbotron for your name.</p>
-        <div class="player-chip" style="width:max-content;margin:20px auto 0"><span class="avatar" style="background:${escapeAttr(p.avatarColor)}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span>${escapeHtml(p.nickname)}</div>
-        <p class="status-pill" style="margin:22px auto 0;width:max-content"><span class="status-dot"></span>${escapeHtml(status)}</p>
+        <h1 class="display" style="font-size:36px;margin:12px 0 8px;color:var(--secondary-container)">You're In!</h1>
+        <p class="subtle">Watch the main display for questions.</p>
+        <span class="status-pill" style="margin-top:20px;"><span class="status-dot"></span>${escapeHtml(status)}</span>
       </div>`;
   }
 
@@ -231,26 +208,24 @@
     const answered = !!snap.answer;
     if (answered || state.pendingAnswer) {
       stage.innerHTML = `
-        <div class="join-card player-status">
-          <div class="player-chip" style="width:max-content;margin:0 auto 20px"><span class="avatar" style="background:${escapeAttr(p.avatarColor)}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span>${escapeHtml(p.nickname)}</div>
-          <h1 class="display" style="font-size:46px;margin:0 0 10px">Answer submitted</h1>
-          <p class="subtle">Check the main screen.</p>
-          <div style="font-size:80px;margin-top:20px">✅</div>
+        <div class="glass-panel join-card" style="text-align:center;">
+          <h1 class="display" style="font-size:32px;margin-bottom:12px">Answer Sent!</h1>
+          <div style="font-size:72px;margin:16px 0">✅</div>
+          <p class="subtle">Check main screen for results.</p>
         </div>`;
       return;
     }
 
-    /* Player View renders clean letter choice buttons without shape emojis */
     stage.innerHTML = `
-      <div class="join-card">
-        <div class="player-status">
+      <div class="glass-panel join-card">
+        <div style="text-align:center;margin-bottom:16px">
           ${scoreBadge(p)}
-          <div id="playerTimerRing" class="timer-ring" style="width:96px;height:96px;margin-bottom:18px"><div class="timer-ring-inner" style="width:76px;height:76px;font-size:28px"><span id="playerTimer">${Number(snap.game.questionTimerLimit || 20)}</span></div></div>
-          <h2 style="margin:0 0 18px">Choose your answer</h2>
-          <p class="subtle" style="margin-top:-8px">Question text is on the jumbotron.</p>
+          <div style="font-size:28px;font-weight:800;color:var(--secondary-container)" id="playerTimer">${Number(snap.game.questionTimerLimit || 20)}</div>
         </div>
         <div class="controller-grid">
-          ${['A','B','C','D'].map(function(letter){ return `<button class="controller-btn ${letter}" data-choice="${letter}">${letter}</button>`; }).join('')}
+          ${['A','B','C','D'].map(function(letter){ 
+            return `<button class="controller-btn ${letter}" data-choice="${letter}">${svgShape(letter)}</button>`; 
+          }).join('')}
         </div>
       </div>`;
     document.querySelectorAll('[data-choice]').forEach(function(btn){
@@ -282,19 +257,19 @@
     state.pendingAnswer = false;
     const p = state.snapshot.player;
     const a = state.snapshot.answer;
-    const result = a && a.pointsAwarded !== null ? (a.isCorrect ? 'Correct!' : (a.choice === 'TIMEOUT' ? 'No answer' : 'Not this time')) : 'Round complete';
-    const points = a && a.pointsAwarded !== null ? `${Number(a.pointsAwarded || 0).toLocaleString()} pts` : '';
+    const result = a && a.pointsAwarded !== null ? (a.isCorrect ? 'Correct!' : (a.choice === 'TIMEOUT' ? 'Time Up' : 'Incorrect')) : 'Round Complete';
+    const points = a && a.pointsAwarded !== null ? `+${Number(a.pointsAwarded || 0).toLocaleString()} pts` : '';
+    
     stage.innerHTML = `
-      <div class="join-card player-status">
+      <div class="glass-panel join-card" style="text-align:center;">
         ${scoreBadge(p)}
-        <h1 class="display" style="font-size:48px;margin:0 0 10px">${escapeHtml(result)}</h1>
-        <p class="subtle">${escapeHtml(points)} ${points ? 'this round' : 'Check the jumbotron.'}</p>
-        <div class="card" style="margin-top:20px;padding:18px">
-          <div style="font-size:18px;color:var(--muted)">Current Rank</div>
-          <div class="pin" style="font-size:80px">#${p.rank || '—'}</div>
-          <div style="font-weight:1000;font-size:28px">${Number(p.totalScore || 0).toLocaleString()} points</div>
+        <h1 class="display" style="font-size:38px;margin:16px 0 8px;color:${a && a.isCorrect ? 'var(--secondary-container)' : 'var(--danger)'}">${escapeHtml(result)}</h1>
+        <p class="subtle" style="font-size:20px;font-weight:700;">${escapeHtml(points)}</p>
+        <div class="glass-panel" style="margin-top:20px;padding:16px">
+          <div style="font-size:14px;color:var(--muted)">Current Rank</div>
+          <div class="pin" style="font-size:54px">#${p.rank || '—'}</div>
+          <div style="font-weight:800;font-size:22px;color:var(--tertiary)">${Number(p.totalScore || 0).toLocaleString()} pts</div>
         </div>
-        <p class="status-pill" style="margin:22px auto 0;width:max-content"><span class="status-dot"></span>${escapeHtml(status)}</p>
       </div>`;
   }
 
@@ -302,19 +277,26 @@
     state.pendingAnswer = false;
     const p = state.snapshot.player;
     stage.innerHTML = `
-      <div class="join-card player-status">
-        <div style="font-size:80px">🏆</div>
-        <h1 class="display" style="font-size:52px;margin:0 0 10px">Final Score</h1>
-        <div class="pin" style="font-size:86px">#${p.rank || '—'}</div>
-        <div style="font-weight:1000;font-size:34px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
-        <p class="subtle">Great game, ${escapeHtml(p.nickname)}.</p>
-        <button class="btn secondary" id="leaveBtn" style="margin-top:18px">Join another game</button>
+      <div class="glass-panel join-card" style="text-align:center;">
+        <div style="font-size:72px">🏆</div>
+        <h1 class="display" style="font-size:42px;margin:10px 0">Final Rank</h1>
+        <div class="pin" style="font-size:64px">#${p.rank || '—'}</div>
+        <div style="font-weight:800;font-size:28px;color:var(--secondary-container);margin-bottom:12px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
+        <button class="btn secondary" id="leaveBtn" style="margin-top:16px">Play Again</button>
       </div>`;
     document.getElementById('leaveBtn').onclick = function(){ localStorage.removeItem(LS_KEY); location.reload(); };
   }
 
   function scoreBadge(p) {
-    return `<div class="score-badge"><span>${escapeHtml(p.nickname || '')}</span><span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span><span>Rank: #${p.rank || '—'}</span></div>`;
+    return `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:9999px;background:var(--surface-variant);border:1px solid var(--border-glass);font-size:14px;font-weight:700"><span>${escapeHtml(p.nickname || '')}</span> • <span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span></div>`;
+  }
+
+  function svgShape(letter) {
+    if (letter === 'A') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 22h20L12 2z"/></svg>`;
+    if (letter === 'B') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
+    if (letter === 'C') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>`;
+    if (letter === 'D') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+    return letter;
   }
 
   function readSaved() {
@@ -323,8 +305,7 @@
   function savePlayer() {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ gamePin: state.gamePin, playerId: state.playerId, nickname: state.nickname })); } catch (err) {}
   }
-  function shape(letter) { return ({ A:'▲', B:'✕', C:'●', D:'■' })[letter] || letter; }
-  function showError(message) { errorEl.textContent = String(message || 'Something went wrong.'); errorEl.classList.remove('hidden'); }
+  function showError(message) { errorEl.textContent = String(message || 'Error occurred.'); errorEl.classList.remove('hidden'); }
   function hideError() { errorEl.classList.add('hidden'); }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
