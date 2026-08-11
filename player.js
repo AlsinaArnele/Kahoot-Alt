@@ -67,7 +67,7 @@
   function renderJoin() {
     stage.innerHTML = `
       <div class="card join-card">
-        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--primary)">Quiz Arena</h1>
+        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--cyan-accent)">Nexus Gaming Hub</h1>
         <p class="subtle" style="text-align:center;margin-bottom:20px">Enter Game PIN and nickname.</p>
         <form id="joinForm">
           <label class="subtle" for="pinInput">Game PIN</label>
@@ -118,7 +118,7 @@
     } catch (err) {
       showError(err.message || err);
       throw err;
-    } font-weight:800; finally {
+    } finally {
       state.loading = false;
       if (state.queued) {
         state.queued = false;
@@ -196,7 +196,7 @@
     stage.innerHTML = `
       <div class="card join-card" style="text-align:center;">
         ${scoreBadge(p)}
-        <h1 class="display" style="font-size:36px;margin:12px 0 8px;color:var(--primary)">You're In</h1>
+        <h1 class="display" style="font-size:36px;margin:12px 0 8px;color:#2b243d">You're In</h1>
         <p class="subtle">Watch main display for questions.</p>
         <span class="status-pill" style="margin-top:20px;"><span class="status-dot"></span>${escapeHtml(status)}</span>
       </div>`;
@@ -209,7 +209,7 @@
     if (answered || state.pendingAnswer) {
       stage.innerHTML = `
         <div class="card join-card" style="text-align:center;">
-          <h1 class="display" style="font-size:32px;margin-bottom:12px;color:var(--primary)">Answer Sent</h1>
+          <h1 class="display" style="font-size:32px;margin-bottom:12px;color:#2b243d">Answer Sent</h1>
           <p class="subtle">Check main screen for results.</p>
         </div>`;
       return;
@@ -219,11 +219,11 @@
       <div class="card join-card">
         <div style="text-align:center;margin-bottom:16px">
           ${scoreBadge(p)}
-          <div style="font-size:28px;font-weight:800;color:var(--primary);margin-top:8px" id="playerTimer">${Number(snap.game.questionTimerLimit || 20)}</div>
+          <div style="font-size:28px;font-weight:800;color:var(--cyan-accent);margin-top:8px" id="playerTimer">${Number(snap.game.questionTimerLimit || 20)}</div>
         </div>
         <div class="controller-grid">
           ${['A','B','C','D'].map(function(letter){ 
-            return `<button class="controller-btn ${letter}" data-choice="${letter}">${letter}</button>`; 
+            return `<button class="controller-btn ${letter}" data-choice="${letter}">${getShapeSvg(letter)}</button>`; 
           }).join('')}
         </div>
       </div>`;
@@ -262,12 +262,12 @@
     stage.innerHTML = `
       <div class="card join-card" style="text-align:center;">
         ${scoreBadge(p)}
-        <h1 class="display" style="font-size:38px;margin:16px 0 8px;color:${a && a.isCorrect ? 'var(--primary)' : 'var(--danger)'}">${escapeHtml(result)}</h1>
+        <h1 class="display" style="font-size:38px;margin:16px 0 8px;color:${a && a.isCorrect ? 'var(--cyan-accent)' : 'var(--danger)'}">${escapeHtml(result)}</h1>
         <p class="subtle" style="font-size:20px;font-weight:700;">${escapeHtml(points)}</p>
-        <div class="card" style="margin-top:20px;padding:16px;background:var(--surface-variant)">
+        <div class="card" style="margin-top:20px;padding:16px;background:#f8f6fc">
           <div style="font-size:14px;color:var(--muted)">Current Rank</div>
           <div class="pin" style="font-size:54px">#${p.rank || '—'}</div>
-          <div style="font-weight:800;font-size:22px;color:var(--primary-light)">${Number(p.totalScore || 0).toLocaleString()} pts</div>
+          <div style="font-weight:800;font-size:22px;color:#2b243d">${Number(p.totalScore || 0).toLocaleString()} pts</div>
         </div>
       </div>`;
   }
@@ -277,16 +277,24 @@
     const p = state.snapshot.player;
     stage.innerHTML = `
       <div class="card join-card" style="text-align:center;">
-        <h1 class="display" style="font-size:38px;margin:10px 0;color:var(--primary)">Final Rank</h1>
+        <h1 class="display" style="font-size:38px;margin:10px 0;color:#2b243d">Final Rank</h1>
         <div class="pin" style="font-size:64px">#${p.rank || '—'}</div>
-        <div style="font-weight:800;font-size:28px;color:var(--primary);margin-bottom:12px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
+        <div style="font-weight:800;font-size:28px;color:var(--cyan-accent);margin-bottom:12px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
         <button class="btn secondary" id="leaveBtn" style="margin-top:16px">Play Again</button>
       </div>`;
     document.getElementById('leaveBtn').onclick = function(){ localStorage.removeItem(LS_KEY); location.reload(); };
   }
 
   function scoreBadge(p) {
-    return `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:9999px;background:var(--surface-variant);border:1px solid var(--border-line);font-size:14px;font-weight:700"><span>${escapeHtml(p.nickname || '')}</span> • <span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span></div>`;
+    return `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:9999px;background:#f8f6fc;border:1px solid var(--border-line);font-size:14px;font-weight:700"><span>${escapeHtml(p.nickname || '')}</span> • <span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span></div>`;
+  }
+
+  function getShapeSvg(letter) {
+    if (letter === 'A') return `<svg class="shape-svg" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>`;
+    if (letter === 'B') return `<svg class="shape-svg" viewBox="0 0 24 24"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
+    if (letter === 'C') return `<svg class="shape-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`;
+    if (letter === 'D') return `<svg class="shape-svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+    return '';
   }
 
   function readSaved() {
