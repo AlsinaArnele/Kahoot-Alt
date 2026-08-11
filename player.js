@@ -118,7 +118,7 @@
     } catch (err) {
       showError(err.message || err);
       throw err;
-    } finally {
+    } font-weight:800; finally {
       state.loading = false;
       if (state.queued) {
         state.queued = false;
@@ -210,9 +210,6 @@
       stage.innerHTML = `
         <div class="card join-card" style="text-align:center;">
           <h1 class="display" style="font-size:32px;margin-bottom:12px;color:var(--primary)">Answer Sent</h1>
-          <div style="margin:20px 0;">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-          </div>
           <p class="subtle">Check main screen for results.</p>
         </div>`;
       return;
@@ -226,7 +223,7 @@
         </div>
         <div class="controller-grid">
           ${['A','B','C','D'].map(function(letter){ 
-            return `<button class="controller-btn ${letter}" data-choice="${letter}">${svgShape(letter)}</button>`; 
+            return `<button class="controller-btn ${letter}" data-choice="${letter}">${letter}</button>`; 
           }).join('')}
         </div>
       </div>`;
@@ -280,9 +277,6 @@
     const p = state.snapshot.player;
     stage.innerHTML = `
       <div class="card join-card" style="text-align:center;">
-        <div style="display:flex;justify-content:center;margin-bottom:12px">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="var(--primary)"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
-        </div>
         <h1 class="display" style="font-size:38px;margin:10px 0;color:var(--primary)">Final Rank</h1>
         <div class="pin" style="font-size:64px">#${p.rank || '—'}</div>
         <div style="font-weight:800;font-size:28px;color:var(--primary);margin-bottom:12px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
@@ -295,22 +289,14 @@
     return `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:9999px;background:var(--surface-variant);border:1px solid var(--border-line);font-size:14px;font-weight:700"><span>${escapeHtml(p.nickname || '')}</span> • <span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span></div>`;
   }
 
-  function svgShape(letter) {
-    if (letter === 'A') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 22h20L12 2z"/></svg>`;
-    if (letter === 'B') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
-    if (letter === 'C') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>`;
-    if (letter === 'D') return `<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
-    return letter;
-  }
-
   function readSaved() {
     try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (err) { return null; }
   }
   function savePlayer() {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ gamePin: state.gamePin, playerId: state.playerId, nickname: state.nickname })); } catch (err) {}
   }
-  function showError(message) { errorEl.textContent = String(message || 'Error occurred.'); errorEl.classList.remove('hidden'); }
-  function hideError() { errorEl.classList.add('hidden'); }
+  function showError(message) { if (errorEl) { errorEl.textContent = String(message || 'Error occurred.'); errorEl.classList.remove('hidden'); } }
+  function hideError() { if (errorEl) errorEl.classList.add('hidden'); }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 
