@@ -81,23 +81,24 @@
   }
 
   function init() {
-    // Attempt audio unlock seamlessly on initial user click
+    // Silently unlock audio on user's first interaction anywhere on screen
     document.addEventListener('click', function unlockOnce() {
       state.audio.unlock();
       playMusicForStatus();
-      document.removeEventListener('click', unlockOnce);
     }, { once: true });
 
-    els.muteBtn.addEventListener('click', function(){
-      state.muted = !state.muted;
-      state.audio.setMuted(state.muted);
-      els.muteBtn.innerHTML = state.muted 
-        ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/></svg> Muted`
-        : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg> Audio`;
-      if (!state.muted) playMusicForStatus();
-    });
+    if (els.muteBtn) {
+      els.muteBtn.addEventListener('click', function(){
+        state.muted = !state.muted;
+        state.audio.setMuted(state.muted);
+        els.muteBtn.textContent = state.muted ? 'Muted' : 'Audio On';
+        if (!state.muted) playMusicForStatus();
+      });
+    }
 
-    els.refreshBtn.addEventListener('click', loadSnapshot);
+    if (els.refreshBtn) {
+      els.refreshBtn.addEventListener('click', loadSnapshot);
+    }
 
     if (!BOOT.supabaseUrl || !BOOT.anonKey) {
       showError('Missing Supabase URL or anon key in config.js.');
@@ -145,7 +146,7 @@
     state.snapshot = snap;
     state.serverOffsetMs = new Date(snap.serverTime).getTime() - Date.now();
     state.gameId = snap.game.id;
-    els.status.textContent = snap.game.status || 'READY';
+    if (els.status) els.status.textContent = snap.game.status || 'READY';
 
     if (snap.game.status !== 'FINISHED') {
       state.finishedRendered = false;
@@ -202,7 +203,6 @@
         if (state.lastCountdownSec !== currentSec) {
           state.lastCountdownSec = currentSec;
           el.textContent = String(currentSec);
-          // Re-trigger bouncy animation tick
           el.classList.remove('bounce-anim');
           void el.offsetWidth;
           el.classList.add('bounce-anim');
@@ -245,14 +245,13 @@
     const players = snap.players || [];
     return `
       <div class="topbar">
-        <div class="brand">Nexus Arena</div>
+        <div class="brand">Quiz Arena</div>
         <div class="pin-badge">
           <span class="subtle" style="text-transform:uppercase;">PIN:</span>
           <span style="font-weight:900;color:var(--primary);letter-spacing:0.1em;font-size:18px">${escapeHtml(snap.game.gamePin)}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-weight:700;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--primary)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-          <span>${players.length}</span>
+        <div style="font-weight:700;">
+          <span>Players: ${players.length}</span>
         </div>
       </div>`;
   }
@@ -330,7 +329,7 @@
       const cls = revealed ? (letter === correct ? 'correct' : 'dim') : '';
       return `
         <div class="answer-card ${letter} ${cls}">
-          <div class="shape">${svgShape(letter)}</div>
+          <div class="choice-tag">${letter}</div>
           <div>${escapeHtml(text)}</div>
         </div>`;
     }).join('');
@@ -375,7 +374,7 @@
       const width = Math.round((count / max) * 100);
       const isCorrect = letter === correct;
       return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}">
-        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;">${svgShape(letter)}</div>
+        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;"><div class="choice-tag" style="width:28px;height:28px;font-size:14px">${letter}</div></div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
         <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--primary);' : ''}">${count}</div>
       </div>`;
@@ -566,21 +565,13 @@
     return true;
   }
 
-  function svgShape(letter) {
-    if (letter === 'A') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 22h20L12 2z"/></svg>`;
-    if (letter === 'B') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
-    if (letter === 'C') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>`;
-    if (letter === 'D') return `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
-    return letter;
-  }
-
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
   function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2d1b69')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
   function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
   
   function podiumPlace(p, rankNum, cls, id) { 
     const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
-    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-medal">${rankNum}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
+    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-rank">${rankNum}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
   }
 
   function playerUrl() {
@@ -594,8 +585,8 @@
     confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#2d1b69', '#6252a1', '#00dbe7', '#ff3366'] });
   }
 
-  function showError(message) { els.error.textContent = String(message || 'Error occurred.'); els.error.classList.remove('hidden'); }
-  function hideError() { els.error.classList.add('hidden'); }
+  function showError(message) { if (els.error) { els.error.textContent = String(message || 'Error occurred.'); els.error.classList.remove('hidden'); } }
+  function hideError() { if (els.error) els.error.classList.add('hidden'); }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 
