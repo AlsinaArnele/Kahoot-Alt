@@ -24,7 +24,8 @@
     error: document.getElementById('hostError'),
     status: document.getElementById('statusText'),
     muteBtn: document.getElementById('muteBtn'),
-    refreshBtn: document.getElementById('refreshBtn')
+    refreshBtn: document.getElementById('refreshBtn'),
+    audioUnlock: document.getElementById('audioUnlock')
   };
 
   const ROOM_STORAGE_KEY = 'quiz_arena_host_room_v1';
@@ -55,7 +56,7 @@
     els.stage.innerHTML = `
       <div class="grid host-grid">
         <section class="card join-card">
-          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--cyan-accent)">Nexus Gaming Hub</h1>
+          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--cyan-accent)">OM Sync</h1>
           <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live.</p>
           <form id="roomForm">
             <label class="subtle" for="roomPinInput">Game PIN</label>
@@ -81,6 +82,13 @@
   }
 
   function init() {
+    // Force hide audio unlock banner
+    if (els.audioUnlock) {
+      els.audioUnlock.style.display = 'none';
+      els.audioUnlock.classList.add('hidden');
+    }
+
+    // Unlock audio seamlessly on first click anywhere
     document.addEventListener('click', function unlockOnce() {
       state.audio.unlock();
       playMusicForStatus();
@@ -239,11 +247,10 @@
   }
 
   function renderHeader() {
-    const snap = state.snapshot;
-    if (!snap || !snap.game) return '';
-    return `<div class="topbar"><div class="brand">Nexus Gaming Hub</div></div>`;
+    return `<div class="topbar"><div class="brand">OM Sync</div></div>`;
   }
 
+  // Question Metrics Bar (ONLY rendered during live questions / results)
   function renderMetricsBar() {
     const snap = state.snapshot;
     if (!snap || !snap.game) return '';
@@ -283,8 +290,7 @@
 
     els.stage.innerHTML = `
       ${renderHeader()}
-      ${renderMetricsBar()}
-      <div class="grid host-grid">
+      <div class="grid host-grid" style="margin-top:20px">
         <section class="card pin-box">
           <div style="text-transform:uppercase;color:var(--cyan-accent);font-weight:800;">Game PIN</div>
           <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
@@ -298,7 +304,7 @@
           </div>
         </section>
         <aside class="card">
-          <h2 style="margin-top:0;color:#2b243d;">Players Joined (${players.length})</h2>
+          <h2 style="margin-top:0;color:#2b243d;">Players (${players.length})</h2>
           <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">Waiting for players...</p>'}</div>
         </aside>
       </div>`;
@@ -338,7 +344,7 @@
       const cls = revealed ? (letter === correct ? 'correct' : 'dim') : '';
       return `
         <div class="answer-card ${letter} ${cls}">
-          ${getShapeSvg(letter)}
+          <div class="choice-tag">${letter}</div>
           <div>${escapeHtml(text)}</div>
         </div>`;
     }).join('');
@@ -381,7 +387,7 @@
       const width = Math.round((count / max) * 100);
       const isCorrect = letter === correct;
       return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}" style="width:100%">
-        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;">${getShapeSvg(letter)}</div>
+        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;"><div class="choice-tag" style="width:28px;height:28px;font-size:14px">${letter}</div></div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
         <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--cyan-accent);' : ''}">${count}</div>
       </div>`;
@@ -574,21 +580,17 @@
     return true;
   }
 
-  function getShapeSvg(letter) {
-    if (letter === 'A') return `<svg class="shape-svg" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>`;
-    if (letter === 'B') return `<svg class="shape-svg" viewBox="0 0 24 24"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
-    if (letter === 'C') return `<svg class="shape-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`;
-    if (letter === 'D') return `<svg class="shape-svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
-    return '';
-  }
-
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2b243d')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
-  function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
+  
+  // Truncate player nickname to max 6 characters
+  function cleanNick(name) { return String(name || '').slice(0, 6); }
+
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2b243d')}">${escapeHtml(cleanNick(p.nickname).slice(0,1).toUpperCase())}</span><span>${escapeHtml(cleanNick(p.nickname))}</span></div>`; }
+  function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(cleanNick(p.nickname))}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
   
   function podiumPlace(p, rankNum, cls, id) { 
     const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
-    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-rank">${rankNum}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
+    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-rank">${rankNum}</div><div class="podium-name">${p ? escapeHtml(cleanNick(p.nickname)) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
   }
 
   function playerUrl() {
