@@ -11,6 +11,7 @@
     revealRequestedFor: '',
     lastAnswerTotal: 0,
     lastStatus: '',
+    lastCountdownSec: -1,
     confettiFired: false,
     finishedRendered: false,
     muted: false,
@@ -21,13 +22,9 @@
   const els = {
     stage: document.getElementById('hostStage'),
     error: document.getElementById('hostError'),
-    notice: document.getElementById('hostNotice'),
     status: document.getElementById('statusText'),
     muteBtn: document.getElementById('muteBtn'),
-    refreshBtn: document.getElementById('refreshBtn'),
-    audioUnlock: document.getElementById('audioUnlock'),
-    unlockAudioBtn: document.getElementById('unlockAudioBtn'),
-    skipAudioBtn: document.getElementById('skipAudioBtn')
+    refreshBtn: document.getElementById('refreshBtn')
   };
 
   const ROOM_STORAGE_KEY = 'quiz_arena_host_room_v1';
@@ -57,9 +54,9 @@
     const saved = readRoomCredentials();
     els.stage.innerHTML = `
       <div class="grid host-grid">
-        <section class="glass-panel join-card">
-          <h1 class="display" style="font-size:38px;margin:0 0 10px">Nexus Arena</h1>
-          <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live to Supabase.</p>
+        <section class="card join-card">
+          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--primary)">Quiz Arena</h1>
+          <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live.</p>
           <form id="roomForm">
             <label class="subtle" for="roomPinInput">Game PIN</label>
             <input id="roomPinInput" class="input" maxlength="20" autocomplete="off" placeholder="123456" value="${escapeAttr(saved.gamePin || '')}">
@@ -84,23 +81,22 @@
   }
 
   function init() {
-    els.unlockAudioBtn.addEventListener('click', function(){
+    // Attempt audio unlock seamlessly on initial user click
+    document.addEventListener('click', function unlockOnce() {
       state.audio.unlock();
-      els.audioUnlock.classList.add('hidden');
       playMusicForStatus();
-    });
-    els.skipAudioBtn.addEventListener('click', function(){
-      state.muted = true;
-      state.audio.setMuted(true);
-      els.audioUnlock.classList.add('hidden');
-      els.muteBtn.textContent = '🔇 Muted';
-    });
+      document.removeEventListener('click', unlockOnce);
+    }, { once: true });
+
     els.muteBtn.addEventListener('click', function(){
       state.muted = !state.muted;
       state.audio.setMuted(state.muted);
-      els.muteBtn.textContent = state.muted ? '🔇 Muted' : '🔊 Audio';
+      els.muteBtn.innerHTML = state.muted 
+        ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/></svg> Muted`
+        : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg> Audio`;
       if (!state.muted) playMusicForStatus();
     });
+
     els.refreshBtn.addEventListener('click', loadSnapshot);
 
     if (!BOOT.supabaseUrl || !BOOT.anonKey) {
@@ -174,9 +170,7 @@
         }
         debounceSnapshot();
       })
-      .subscribe(function(status){
-        if (status === 'SUBSCRIBED') showNotice('Realtime active.');
-      });
+      .subscribe();
   }
 
   let debounceHandle = null;
@@ -201,8 +195,20 @@
     if (g.status === 'PRECOUNTDOWN') {
       const started = new Date(g.precountdownStartedAt || snap.serverTime).getTime();
       const remaining = Math.max(0, 3 - ((nowServerMs() - started) / 1000));
+      const currentSec = Math.max(1, Math.ceil(remaining));
+      
       const el = document.getElementById('precountdownNumber');
-      if (el) el.textContent = String(Math.max(1, Math.ceil(remaining)));
+      if (el) {
+        if (state.lastCountdownSec !== currentSec) {
+          state.lastCountdownSec = currentSec;
+          el.textContent = String(currentSec);
+          // Re-trigger bouncy animation tick
+          el.classList.remove('bounce-anim');
+          void el.offsetWidth;
+          el.classList.add('bounce-anim');
+        }
+      }
+
       if (remaining <= 0.05 && state.revealRequestedFor !== 'begin-' + g.currentRound) {
         state.revealRequestedFor = 'begin-' + g.currentRound;
         advanceGame();
@@ -242,10 +248,10 @@
         <div class="brand">Nexus Arena</div>
         <div class="pin-badge">
           <span class="subtle" style="text-transform:uppercase;">PIN:</span>
-          <span style="font-weight:800;color:var(--secondary-container);letter-spacing:0.1em">${escapeHtml(snap.game.gamePin)}</span>
+          <span style="font-weight:900;color:var(--primary);letter-spacing:0.1em;font-size:18px">${escapeHtml(snap.game.gamePin)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;font-weight:700;">
-          <span class="material-symbols-outlined" style="color:var(--secondary-container)">group</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--primary)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
           <span>${players.length}</span>
         </div>
       </div>`;
@@ -261,7 +267,7 @@
     if (status === 'REVEAL') return renderQuestion(true);
     if (status === 'LEADERBOARD') return renderLeaderboard(false);
     if (status === 'FINISHED') return renderFinished();
-    els.stage.innerHTML = '<div class="glass-panel"><h1>Unknown status</h1></div>';
+    els.stage.innerHTML = '<div class="card"><h1>Unknown status</h1></div>';
   }
 
   function renderLobby() {
@@ -272,8 +278,8 @@
     els.stage.innerHTML = `
       ${renderHeader()}
       <div class="grid host-grid">
-        <section class="glass-panel pin-box">
-          <div style="text-transform:uppercase;color:var(--secondary-container);font-weight:800;">Game PIN</div>
+        <section class="card pin-box">
+          <div style="text-transform:uppercase;color:var(--primary);font-weight:800;">Game PIN</div>
           <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
           <div class="qr-wrap">
             <img src="${qrImageUrl}" alt="Join Game QR Code" />
@@ -284,8 +290,8 @@
             <button class="btn secondary" data-action="reset">Reset</button>
           </div>
         </section>
-        <aside class="glass-panel">
-          <h2 style="margin-top:0;color:var(--secondary-container);">Players Joined (${players.length})</h2>
+        <aside class="card">
+          <h2 style="margin-top:0;color:var(--primary);">Players Joined (${players.length})</h2>
           <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">Waiting for players...</p>'}</div>
         </aside>
       </div>`;
@@ -294,13 +300,14 @@
 
   function renderPrecountdown() {
     const players = state.snapshot.players || [];
+    state.lastCountdownSec = 3;
     els.stage.innerHTML = `
       ${renderHeader()}
-      <section class="glass-panel" style="text-align:center;min-height:60vh;display:grid;place-items:center">
+      <section class="card" style="text-align:center;min-height:60vh;display:grid;place-items:center">
         <div>
           <span class="status-pill"><span class="status-dot"></span>GET READY</span>
           <h1 class="display" style="margin-top:16px;">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
-          <div id="precountdownNumber" class="pin" style="font-size:clamp(100px,18vw,240px)">3</div>
+          <div id="precountdownNumber" class="pin bounce-anim" style="font-size:clamp(100px,18vw,240px)">3</div>
           <p class="subtle" style="font-size:20px;">${players.length} players connected</p>
           <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
             <button class="btn secondary" data-action="advance">Start Now</button>
@@ -333,7 +340,7 @@
     els.stage.innerHTML = `
       ${renderHeader()}
       <div class="grid host-grid">
-        <section class="glass-panel">
+        <section class="card">
           <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
             <span class="status-pill"><span class="status-dot"></span>Round ${escapeHtml(snap.game.currentRound || '')}</span>
             <span class="subtle">${escapeHtml(q.category || '')}</span>
@@ -343,14 +350,14 @@
           <div class="answers">${answers}</div>
           ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:20px;"><strong>Explanation:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
         </section>
-        <aside class="glass-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <aside class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           ${revealed ? distribution : `
             <div class="timer-container">
               <div id="timerCircle" class="timer-circle">
-                <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:white">${Number(snap.game.questionTimerLimit || 20)}</span>
+                <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:var(--primary)">${Number(snap.game.questionTimerLimit || 20)}</span>
                 <span style="font-size:11px;letter-spacing:0.1em;margin-top:4px;color:var(--muted)">SECONDS</span>
               </div>
-              <p style="margin-top:20px;font-weight:800;color:var(--secondary-container)">${Number(stats.total || 0)} / ${active} answered</p>
+              <p style="margin-top:20px;font-weight:800;color:var(--primary)">${Number(stats.total || 0)} / ${active} answered</p>
             </div>
           `}
           <div style="margin-top:24px;width:100%">
@@ -370,7 +377,7 @@
       return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}">
         <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;">${svgShape(letter)}</div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
-        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--secondary-container);' : ''}">${count}</div>
+        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--primary);' : ''}">${count}</div>
       </div>`;
     }).join('');
   }
@@ -379,7 +386,7 @@
     const rows = state.snapshot.leaderboard || [];
     els.stage.innerHTML = `
       ${renderHeader()}
-      <section class="glass-panel" style="max-width:800px;margin:0 auto">
+      <section class="card" style="max-width:800px;margin:0 auto">
         <h1 class="display" style="text-align:center;margin-bottom:20px">Leaderboard</h1>
         ${rows.map(scoreRow).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
         <div style="display:flex;justify-content:center;margin-top:24px">
@@ -396,14 +403,14 @@
       const podium = [rows[1], rows[0], rows[2]];
       els.stage.innerHTML = `
         ${renderHeader()}
-        <section class="glass-panel" style="max-width:850px;margin:0 auto;text-align:center">
+        <section class="card" style="max-width:850px;margin:0 auto;text-align:center">
           <h1 class="display">Final Podium</h1>
           <div class="podium">
-            ${podiumPlace(podium[0], '🥈', 'second', 'pod-2')}
-            ${podiumPlace(podium[1], '🏆', 'first', 'pod-1')}
-            ${podiumPlace(podium[2], '🥉', 'third', 'pod-3')}
+            ${podiumPlace(podium[0], '2', 'second', 'pod-2')}
+            ${podiumPlace(podium[1], '1', 'first', 'pod-1')}
+            ${podiumPlace(podium[2], '3', 'third', 'pod-3')}
           </div>
-          <h2 style="margin-top:32px; color:var(--secondary-container);">Top 10</h2>
+          <h2 style="margin-top:32px; color:var(--primary);">Top 10</h2>
           <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
           <div style="display:flex;justify-content:center;margin-top:28px">
             <button class="btn danger" data-action="reset">Reset Arena</button>
@@ -568,12 +575,12 @@
   }
 
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#cbbeff')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2d1b69')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
   function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
   
-  function podiumPlace(p, medal, cls, id) { 
+  function podiumPlace(p, rankNum, cls, id) { 
     const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
-    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-medal">${medal}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
+    return `<div id="${id || ''}" class="podium-place ${cls}" style="${revealStyling}"><div class="podium-medal">${rankNum}</div><div class="podium-name">${p ? escapeHtml(p.nickname) : '—'}</div><div class="podium-score">${p ? Number(p.totalScore || 0).toLocaleString() + ' pt' : ''}</div></div>`; 
   }
 
   function playerUrl() {
@@ -584,12 +591,11 @@
 
   function fireConfetti() {
     if (!window.confetti) return;
-    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#00f1fe', '#cbbeff', '#ffffff', '#fface8'] });
+    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#2d1b69', '#6252a1', '#00dbe7', '#ff3366'] });
   }
 
-  function showError(message) { els.error.textContent = String(message || 'Something went wrong.'); els.error.classList.remove('hidden'); }
+  function showError(message) { els.error.textContent = String(message || 'Error occurred.'); els.error.classList.remove('hidden'); }
   function hideError() { els.error.classList.add('hidden'); }
-  function showNotice(message) { els.notice.textContent = message; els.notice.classList.remove('hidden'); setTimeout(function(){ els.notice.classList.add('hidden'); }, 3000); }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 
