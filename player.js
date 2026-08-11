@@ -66,9 +66,9 @@
 
   function renderJoin() {
     stage.innerHTML = `
-      <div class="glass-panel join-card">
-        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--secondary-container)">Nexus Arena</h1>
-        <p class="subtle" style="text-align:center;margin-bottom:20px">Enter Game PIN and your stadium nickname.</p>
+      <div class="card join-card">
+        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--primary)">Quiz Arena</h1>
+        <p class="subtle" style="text-align:center;margin-bottom:20px">Enter Game PIN and nickname.</p>
         <form id="joinForm">
           <label class="subtle" for="pinInput">Game PIN</label>
           <input id="pinInput" class="input" inputmode="numeric" autocomplete="one-time-code" value="${escapeAttr(BOOT.gamePin || state.gamePin || getUrlPin() || '')}" maxlength="12" placeholder="123456">
@@ -194,10 +194,10 @@
   function renderWaiting(status) {
     const p = state.snapshot.player;
     stage.innerHTML = `
-      <div class="glass-panel join-card" style="text-align:center;">
+      <div class="card join-card" style="text-align:center;">
         ${scoreBadge(p)}
-        <h1 class="display" style="font-size:36px;margin:12px 0 8px;color:var(--secondary-container)">You're In!</h1>
-        <p class="subtle">Watch the main display for questions.</p>
+        <h1 class="display" style="font-size:36px;margin:12px 0 8px;color:var(--primary)">You're In</h1>
+        <p class="subtle">Watch main display for questions.</p>
         <span class="status-pill" style="margin-top:20px;"><span class="status-dot"></span>${escapeHtml(status)}</span>
       </div>`;
   }
@@ -208,19 +208,21 @@
     const answered = !!snap.answer;
     if (answered || state.pendingAnswer) {
       stage.innerHTML = `
-        <div class="glass-panel join-card" style="text-align:center;">
-          <h1 class="display" style="font-size:32px;margin-bottom:12px">Answer Sent!</h1>
-          <div style="font-size:72px;margin:16px 0">✅</div>
+        <div class="card join-card" style="text-align:center;">
+          <h1 class="display" style="font-size:32px;margin-bottom:12px;color:var(--primary)">Answer Sent</h1>
+          <div style="margin:20px 0;">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          </div>
           <p class="subtle">Check main screen for results.</p>
         </div>`;
       return;
     }
 
     stage.innerHTML = `
-      <div class="glass-panel join-card">
+      <div class="card join-card">
         <div style="text-align:center;margin-bottom:16px">
           ${scoreBadge(p)}
-          <div style="font-size:28px;font-weight:800;color:var(--secondary-container)" id="playerTimer">${Number(snap.game.questionTimerLimit || 20)}</div>
+          <div style="font-size:28px;font-weight:800;color:var(--primary);margin-top:8px" id="playerTimer">${Number(snap.game.questionTimerLimit || 20)}</div>
         </div>
         <div class="controller-grid">
           ${['A','B','C','D'].map(function(letter){ 
@@ -261,14 +263,14 @@
     const points = a && a.pointsAwarded !== null ? `+${Number(a.pointsAwarded || 0).toLocaleString()} pts` : '';
     
     stage.innerHTML = `
-      <div class="glass-panel join-card" style="text-align:center;">
+      <div class="card join-card" style="text-align:center;">
         ${scoreBadge(p)}
-        <h1 class="display" style="font-size:38px;margin:16px 0 8px;color:${a && a.isCorrect ? 'var(--secondary-container)' : 'var(--danger)'}">${escapeHtml(result)}</h1>
+        <h1 class="display" style="font-size:38px;margin:16px 0 8px;color:${a && a.isCorrect ? 'var(--primary)' : 'var(--danger)'}">${escapeHtml(result)}</h1>
         <p class="subtle" style="font-size:20px;font-weight:700;">${escapeHtml(points)}</p>
-        <div class="glass-panel" style="margin-top:20px;padding:16px">
+        <div class="card" style="margin-top:20px;padding:16px;background:var(--surface-variant)">
           <div style="font-size:14px;color:var(--muted)">Current Rank</div>
           <div class="pin" style="font-size:54px">#${p.rank || '—'}</div>
-          <div style="font-weight:800;font-size:22px;color:var(--tertiary)">${Number(p.totalScore || 0).toLocaleString()} pts</div>
+          <div style="font-weight:800;font-size:22px;color:var(--primary-light)">${Number(p.totalScore || 0).toLocaleString()} pts</div>
         </div>
       </div>`;
   }
@@ -277,18 +279,20 @@
     state.pendingAnswer = false;
     const p = state.snapshot.player;
     stage.innerHTML = `
-      <div class="glass-panel join-card" style="text-align:center;">
-        <div style="font-size:72px">🏆</div>
-        <h1 class="display" style="font-size:42px;margin:10px 0">Final Rank</h1>
+      <div class="card join-card" style="text-align:center;">
+        <div style="display:flex;justify-content:center;margin-bottom:12px">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="var(--primary)"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+        </div>
+        <h1 class="display" style="font-size:38px;margin:10px 0;color:var(--primary)">Final Rank</h1>
         <div class="pin" style="font-size:64px">#${p.rank || '—'}</div>
-        <div style="font-weight:800;font-size:28px;color:var(--secondary-container);margin-bottom:12px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
+        <div style="font-weight:800;font-size:28px;color:var(--primary);margin-bottom:12px">${Number(p.totalScore || 0).toLocaleString()} pts</div>
         <button class="btn secondary" id="leaveBtn" style="margin-top:16px">Play Again</button>
       </div>`;
     document.getElementById('leaveBtn').onclick = function(){ localStorage.removeItem(LS_KEY); location.reload(); };
   }
 
   function scoreBadge(p) {
-    return `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:9999px;background:var(--surface-variant);border:1px solid var(--border-glass);font-size:14px;font-weight:700"><span>${escapeHtml(p.nickname || '')}</span> • <span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span></div>`;
+    return `<div style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:9999px;background:var(--surface-variant);border:1px solid var(--border-line);font-size:14px;font-weight:700"><span>${escapeHtml(p.nickname || '')}</span> • <span>Score: ${Number(p.totalScore || 0).toLocaleString()}</span></div>`;
   }
 
   function svgShape(letter) {
