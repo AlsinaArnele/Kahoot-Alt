@@ -55,7 +55,7 @@
     els.stage.innerHTML = `
       <div class="grid host-grid">
         <section class="card join-card">
-          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--primary)">Quiz Arena</h1>
+          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--cyan-accent)">Nexus Gaming Hub</h1>
           <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live.</p>
           <form id="roomForm">
             <label class="subtle" for="roomPinInput">Game PIN</label>
@@ -81,7 +81,6 @@
   }
 
   function init() {
-    // Silently unlock audio on user's first interaction anywhere on screen
     document.addEventListener('click', function unlockOnce() {
       state.audio.unlock();
       playMusicForStatus();
@@ -242,16 +241,24 @@
   function renderHeader() {
     const snap = state.snapshot;
     if (!snap || !snap.game) return '';
+    return `<div class="topbar"><div class="brand">Nexus Gaming Hub</div></div>`;
+  }
+
+  function renderMetricsBar() {
+    const snap = state.snapshot;
+    if (!snap || !snap.game) return '';
     const players = snap.players || [];
+    const totalQuestions = snap.totalQuestions || 10;
     return `
-      <div class="topbar">
-        <div class="brand">Quiz Arena</div>
+      <div class="metrics-bar">
+        <div class="metric-cyan">Q: ${escapeHtml(snap.game.currentRound)} / ${totalQuestions}</div>
         <div class="pin-badge">
-          <span class="subtle" style="text-transform:uppercase;">PIN:</span>
-          <span style="font-weight:900;color:var(--primary);letter-spacing:0.1em;font-size:18px">${escapeHtml(snap.game.gamePin)}</span>
+          <span style="font-size:12px;font-weight:700;color:var(--muted)">PIN:</span>
+          <span class="pin-text">${escapeHtml(snap.game.gamePin)}</span>
         </div>
-        <div style="font-weight:700;">
-          <span>Players: ${players.length}</span>
+        <div class="metric-cyan" style="display:flex;align-items:center;gap:6px">
+          <span>👥</span>
+          <span>${players.length.toLocaleString()}</span>
         </div>
       </div>`;
   }
@@ -276,9 +283,10 @@
 
     els.stage.innerHTML = `
       ${renderHeader()}
+      ${renderMetricsBar()}
       <div class="grid host-grid">
         <section class="card pin-box">
-          <div style="text-transform:uppercase;color:var(--primary);font-weight:800;">Game PIN</div>
+          <div style="text-transform:uppercase;color:var(--cyan-accent);font-weight:800;">Game PIN</div>
           <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
           <div class="qr-wrap">
             <img src="${qrImageUrl}" alt="Join Game QR Code" />
@@ -290,7 +298,7 @@
           </div>
         </section>
         <aside class="card">
-          <h2 style="margin-top:0;color:var(--primary);">Players Joined (${players.length})</h2>
+          <h2 style="margin-top:0;color:#2b243d;">Players Joined (${players.length})</h2>
           <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">Waiting for players...</p>'}</div>
         </aside>
       </div>`;
@@ -302,11 +310,12 @@
     state.lastCountdownSec = 3;
     els.stage.innerHTML = `
       ${renderHeader()}
-      <section class="card" style="text-align:center;min-height:60vh;display:grid;place-items:center">
+      ${renderMetricsBar()}
+      <section class="card" style="text-align:center;min-height:55vh;display:grid;place-items:center">
         <div>
           <span class="status-pill"><span class="status-dot"></span>GET READY</span>
-          <h1 class="display" style="margin-top:16px;">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
-          <div id="precountdownNumber" class="pin bounce-anim" style="font-size:clamp(100px,18vw,240px)">3</div>
+          <h1 class="display" style="margin-top:16px;color:#2b243d">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
+          <div id="precountdownNumber" class="pin bounce-anim" style="font-size:clamp(100px,18vw,240px);color:var(--cyan-accent)">3</div>
           <p class="subtle" style="font-size:20px;">${players.length} players connected</p>
           <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
             <button class="btn secondary" data-action="advance">Start Now</button>
@@ -329,7 +338,7 @@
       const cls = revealed ? (letter === correct ? 'correct' : 'dim') : '';
       return `
         <div class="answer-card ${letter} ${cls}">
-          <div class="choice-tag">${letter}</div>
+          ${getShapeSvg(letter)}
           <div>${escapeHtml(text)}</div>
         </div>`;
     }).join('');
@@ -338,31 +347,29 @@
 
     els.stage.innerHTML = `
       ${renderHeader()}
-      <div class="grid host-grid">
-        <section class="card">
-          <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-            <span class="status-pill"><span class="status-dot"></span>Round ${escapeHtml(snap.game.currentRound || '')}</span>
-            <span class="subtle">${escapeHtml(q.category || '')}</span>
+      ${renderMetricsBar()}
+      <div class="question-box">
+        <h1 class="question-title">${escapeHtml(q.question || 'Question')}</h1>
+      </div>
+      
+      ${q.imageUrl ? `<img class="question-image" src="${escapeAttr(q.imageUrl)}" alt="Question image">` : ''}
+
+      <div class="flex flex-col md:flex-row gap-8 items-center justify-center w-full" style="display:flex;gap:24px;align-items:center;justify-content:center;margin-bottom:20px;">
+        <div class="timer-container">
+          <div id="timerCircle" class="timer-circle">
+            <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:#2b243d">${Number(snap.game.questionTimerLimit || 20)}</span>
+            <span style="font-size:11px;letter-spacing:0.1em;margin-top:4px;color:var(--muted);font-weight:700">SECONDS</span>
           </div>
-          <h1 class="question-title">${escapeHtml(q.question || 'Question')}</h1>
-          ${q.imageUrl ? `<img class="question-image" src="${escapeAttr(q.imageUrl)}" alt="Question image">` : ''}
-          <div class="answers">${answers}</div>
-          ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:20px;"><strong>Explanation:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
-        </section>
-        <aside class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
-          ${revealed ? distribution : `
-            <div class="timer-container">
-              <div id="timerCircle" class="timer-circle">
-                <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:var(--primary)">${Number(snap.game.questionTimerLimit || 20)}</span>
-                <span style="font-size:11px;letter-spacing:0.1em;margin-top:4px;color:var(--muted)">SECONDS</span>
-              </div>
-              <p style="margin-top:20px;font-weight:800;color:var(--primary)">${Number(stats.total || 0)} / ${active} answered</p>
-            </div>
-          `}
-          <div style="margin-top:24px;width:100%">
-            ${revealed ? '<button class="btn big" style="width:100%" data-action="advance">Leaderboard</button>' : '<button class="btn danger" style="width:100%" data-action="reveal">Skip / Reveal</button>'}
-          </div>
-        </aside>
+        </div>
+      </div>
+
+      <div class="answers">${answers}</div>
+      
+      ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:20px;"><strong>Explanation:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
+
+      <div style="margin-top:24px;display:flex;justify-content:center">
+        ${revealed ? distribution : ''}
+        ${revealed ? '<button class="btn big" style="margin-top:16px" data-action="advance">Leaderboard</button>' : '<button class="btn danger" style="margin-top:16px" data-action="reveal">Skip / Reveal</button>'}
       </div>`;
     bindActions();
   }
@@ -373,10 +380,10 @@
       const count = Number(stats[letter] || 0);
       const width = Math.round((count / max) * 100);
       const isCorrect = letter === correct;
-      return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}">
-        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;"><div class="choice-tag" style="width:28px;height:28px;font-size:14px">${letter}</div></div>
+      return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}" style="width:100%">
+        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;">${getShapeSvg(letter)}</div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
-        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--primary);' : ''}">${count}</div>
+        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--cyan-accent);' : ''}">${count}</div>
       </div>`;
     }).join('');
   }
@@ -385,8 +392,9 @@
     const rows = state.snapshot.leaderboard || [];
     els.stage.innerHTML = `
       ${renderHeader()}
+      ${renderMetricsBar()}
       <section class="card" style="max-width:800px;margin:0 auto">
-        <h1 class="display" style="text-align:center;margin-bottom:20px">Leaderboard</h1>
+        <h1 class="display" style="text-align:center;margin-bottom:20px;color:#2b243d">Leaderboard</h1>
         ${rows.map(scoreRow).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
         <div style="display:flex;justify-content:center;margin-top:24px">
           <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next Question'}</button>
@@ -402,14 +410,15 @@
       const podium = [rows[1], rows[0], rows[2]];
       els.stage.innerHTML = `
         ${renderHeader()}
+        ${renderMetricsBar()}
         <section class="card" style="max-width:850px;margin:0 auto;text-align:center">
-          <h1 class="display">Final Podium</h1>
+          <h1 class="display" style="color:#2b243d">Final Podium</h1>
           <div class="podium">
             ${podiumPlace(podium[0], '2', 'second', 'pod-2')}
             ${podiumPlace(podium[1], '1', 'first', 'pod-1')}
             ${podiumPlace(podium[2], '3', 'third', 'pod-3')}
           </div>
-          <h2 style="margin-top:32px; color:var(--primary);">Top 10</h2>
+          <h2 style="margin-top:32px; color:#2b243d;">Top 10</h2>
           <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
           <div style="display:flex;justify-content:center;margin-top:28px">
             <button class="btn danger" data-action="reset">Reset Arena</button>
@@ -565,8 +574,16 @@
     return true;
   }
 
+  function getShapeSvg(letter) {
+    if (letter === 'A') return `<svg class="shape-svg" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>`;
+    if (letter === 'B') return `<svg class="shape-svg" viewBox="0 0 24 24"><path d="M12 2L2 12l10 10L22 12 12 2z"/></svg>`;
+    if (letter === 'C') return `<svg class="shape-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`;
+    if (letter === 'D') return `<svg class="shape-svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+    return '';
+  }
+
   function norm(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2d1b69')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2b243d')}">${escapeHtml((p.nickname || '?').slice(0,1).toUpperCase())}</span><span>${escapeHtml(p.nickname || '')}</span></div>`; }
   function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(p.nickname || '')}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
   
   function podiumPlace(p, rankNum, cls, id) { 
@@ -582,7 +599,7 @@
 
   function fireConfetti() {
     if (!window.confetti) return;
-    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#2d1b69', '#6252a1', '#00dbe7', '#ff3366'] });
+    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#2b243d', '#00dbe7', '#e60039', '#e0a900'] });
   }
 
   function showError(message) { if (els.error) { els.error.textContent = String(message || 'Error occurred.'); els.error.classList.remove('hidden'); } }
