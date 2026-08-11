@@ -247,6 +247,7 @@
   }
 
   function renderHeader() {
+    '';
   }
 
   // Question Metrics Bar (ONLY rendered during live questions / results)
