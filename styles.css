@@ -33,6 +33,11 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Force hide audio unlock banner */
+#audioUnlock, .audio-unlock {
+  display: none !important;
+}
+
 h1, h2, h3, .display, .brand, .pin {
   font-family: 'Montserrat', sans-serif;
   letter-spacing: -0.02em;
@@ -114,7 +119,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   position: relative;
 }
 
-/* Question Frosted Purple Display Box */
+/* Question Frosted Display Box */
 .question-box {
   background: var(--question-box-bg);
   backdrop-filter: blur(12px);
@@ -127,7 +132,6 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.5), 0 8px 24px rgba(94, 75, 139, 0.1);
 }
 
-/* QUESTION TEXT: Smaller than answers to easily fit long text */
 .question-title {
   font-size: clamp(15px, 2vw, 22px);
   font-weight: 700;
@@ -156,7 +160,6 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   margin-top: 16px;
 }
 
-/* ANSWER TEXT: Prominent, larger, and bold */
 .answer-card {
   min-height: 100px;
   border-radius: 16px;
@@ -178,11 +181,16 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .answer-card.C { background: var(--yellow-bg); box-shadow: 0 8px 0 var(--yellow-shadow); }
 .answer-card.D { background: var(--green-bg); box-shadow: 0 8px 0 var(--green-shadow); }
 
-.shape-svg {
+.choice-tag {
   width: 38px;
   height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.25);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 20px;
   flex-shrink: 0;
-  fill: #ffffff;
 }
 
 .answer-card.correct {
@@ -318,7 +326,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 /* Players List & Leaderboard */
 .players-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
   max-height: 45vh;
   overflow-y: auto;
