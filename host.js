@@ -247,7 +247,6 @@
   }
 
   function renderHeader() {
-    return `<div class="topbar"><div class="brand">OM Sync</div></div>`;
   }
 
   // Question Metrics Bar (ONLY rendered during live questions / results)
