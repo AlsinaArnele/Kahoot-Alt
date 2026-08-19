@@ -21,7 +21,7 @@
 
   const RESTRICTED_TERMS = [
     'resignation','resign','tutam','twoterms','twoterm','rutomustgo','zakayo',
-    'fuck','shit','bitch','asshole','cunt','bastard','dick','pussy'
+    'fuck','shit','bitch','asshole','cunt','bastard','dick','pussy', 'wantam', 'one term', 'term'
   ];
 
   function isRestrictedNickname(nickname) {
