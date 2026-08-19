@@ -14,6 +14,7 @@
     lastCountdownSec: -1,
     confettiFired: false,
     finishedRendered: false,
+    leaderboardAlreadyRendered: false,
     muted: false,
     loading: false,
     snapshotQueued: false,
@@ -257,7 +258,7 @@
     const snap = state.snapshot;
     if (!snap || !snap.game) return '';
     const players = snap.players || [];
-    const totalQuestions = snap.totalQuestions || 10;
+    const totalQuestions = snap.totalQuestions || 13;
     return `
       <div class="metrics-bar">
         <div class="metric-cyan">Q: ${escapeHtml(snap.game.currentRound)} / ${totalQuestions}</div>
@@ -288,7 +289,7 @@
   function renderLobby() {
     const players = state.snapshot.players || [];
     const playUrl = playerUrl();
-    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1fYqyPdvncX8qrOrFT34X61uooLTeVbWD&sz=s1000';
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
 
     els.stage.innerHTML = `
       ${renderHeader()}
@@ -337,8 +338,6 @@
   function renderQuestion(revealed) {
     const snap = state.snapshot;
     const q = snap.question || {};
-    const stats = snap.answerStats || { A:0, B:0, C:0, D:0, total:0 };
-    const active = Number(snap.activePlayerCount || 0);
     const correct = String(q.correct || '').toUpperCase();
     
     const answers = ['A','B','C','D'].map(function(letter){
@@ -350,8 +349,6 @@
           <div>${escapeHtml(text)}</div>
         </div>`;
     }).join('');
-
-    const distribution = revealed ? renderDistribution(stats, correct) : '';
 
     els.stage.innerHTML = `
       ${renderHeader()}
@@ -376,28 +373,22 @@
       ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:20px;"><strong>Explanation:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
 
       <div style="margin-top:24px;display:flex;justify-content:center;flex-direction:column;align-items:center">
-        ${revealed ? distribution : ''}
         ${revealed ? '<button class="btn big" style="margin-top:16px" data-action="advance">Leaderboard</button>' : '<button class="btn danger" style="margin-top:16px" data-action="reveal">Skip / Reveal</button>'}
       </div>`;
     bindActions();
   }
 
-  function renderDistribution(stats, correct) {
-    const max = Math.max(1, stats.A || 0, stats.B || 0, stats.C || 0, stats.D || 0);
-    return ['A','B','C','D'].map(function(letter){
-      const count = Number(stats[letter] || 0);
-      const width = Math.round((count / max) * 100);
-      const isCorrect = letter === correct;
-      return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}" style="width:100%">
-        <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;"><div class="choice-tag" style="width:28px;height:28px;font-size:14px">${letter}</div></div>
-        <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
-        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--crimson-accent);' : ''}">${count}</div>
-      </div>`;
-    }).join('');
-  }
-
   function renderLeaderboard(finalMode) {
     const rows = state.snapshot.leaderboard || [];
+
+    // Update numbers in-place if leaderboard is already rendered on screen to prevent re-triggering entrance animations
+    const listContainer = document.getElementById('leaderboardList');
+    if (state.leaderboardAlreadyRendered && listContainer) {
+      updateLeaderboardInPlace(rows);
+      return;
+    }
+
+    state.leaderboardAlreadyRendered = true;
     
     els.stage.innerHTML = `
       ${renderHeader()}
@@ -405,7 +396,7 @@
       <section class="card" style="max-width:800px;margin:0 auto">
         <h1 class="display" style="text-align:center;margin-bottom:20px;color:var(--text-primary)">Leaderboard</h1>
         <div id="leaderboardList">
-          ${rows.map((p, i) => scoreRow(p, i)).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+          ${rows.map((p, i) => scoreRow(p, i, true)).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
         </div>
         <div style="display:flex;justify-content:center;margin-top:24px">
           <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next Question'}</button>
@@ -416,6 +407,36 @@
     
     // Animate score count-up
     setTimeout(animateScoreIncrements, 100);
+  }
+
+  function updateLeaderboardInPlace(rows) {
+    const container = document.getElementById('leaderboardList');
+    if (!container) return;
+
+    rows.forEach((p, i) => {
+      const rowEl = container.children[i];
+      if (!rowEl) return;
+      
+      const rankEl = rowEl.querySelector('.rank');
+      const nameEl = rowEl.querySelector('.name');
+      const scoreEl = rowEl.querySelector('.score');
+
+      if (rankEl) rankEl.textContent = `#${p.rank || i + 1}`;
+      if (nameEl) {
+        const cleanNickname = cleanNick(p.nickname);
+        const streakHtml = streakBadge(p.streak || p.currentStreak);
+        nameEl.innerHTML = `<span>${escapeHtml(cleanNickname)}</span>${streakHtml}`;
+      }
+      if (scoreEl) {
+        const newScore = Number(p.totalScore || 0);
+        const oldScore = parseInt(scoreEl.getAttribute('data-target') || String(newScore), 10);
+        scoreEl.setAttribute('data-start', String(oldScore));
+        scoreEl.setAttribute('data-target', String(newScore));
+        scoreEl.setAttribute('data-player-id', p.playerId);
+      }
+    });
+
+    animateScoreIncrements();
   }
 
   function renderFinished() {
@@ -434,7 +455,7 @@
             ${podiumPlace(podium[2], '3', 'third', 'pod-3')}
           </div>
           <h2 style="margin-top:32px; color:var(--text-primary);">Top 10</h2>
-          <div style="text-align:left">${rows.map((p, i) => scoreRow(p, i)).join('') || '<p class="subtle">No players.</p>'}</div>
+          <div style="text-align:left">${rows.map((p, i) => scoreRow(p, i, false)).join('') || '<p class="subtle">No players.</p>'}</div>
           <div style="display:flex;justify-content:center;margin-top:28px">
             <button class="btn danger" data-action="reset">Reset Arena</button>
           </div>
@@ -501,6 +522,11 @@
     const prevStatus = prev && prev.game ? prev.game.status : '';
     const status = next.game.status;
     const stats = next.answerStats || {};
+
+    // Reset leaderboard entrance animation flag when leaving the leaderboard screen
+    if (status !== 'LEADERBOARD') {
+      state.leaderboardAlreadyRendered = false;
+    }
 
     if (status !== prevStatus) {
       state.audio.stopAll();
@@ -604,7 +630,7 @@
 
   function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2d1215')}">${escapeHtml(cleanNick(p.nickname).slice(0,1).toUpperCase())}</span><span>${escapeHtml(cleanNick(p.nickname))}</span></div>`; }
 
-  function scoreRow(p, i) {
+  function scoreRow(p, i, isInitial = false) {
     const newScore = Number(p.totalScore || 0);
     const oldScore = state.previousScores[p.playerId] !== undefined 
       ? state.previousScores[p.playerId] 
@@ -612,9 +638,10 @@
       
     const cleanNickname = cleanNick(p.nickname);
     const streakHtml = streakBadge(p.streak || p.currentStreak);
+    const animStyle = isInitial ? `style="--i: ${i}"` : '';
 
     return `
-      <div class="scoreboard-row" style="--i: ${i}">
+      <div class="scoreboard-row" ${animStyle}>
         <div class="rank">#${p.rank || i + 1}</div>
         <div class="name" style="display:flex;align-items:center;">
           <span>${escapeHtml(cleanNickname)}</span>
