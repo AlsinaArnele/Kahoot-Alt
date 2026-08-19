@@ -255,7 +255,7 @@
     const snap = state.snapshot;
     if (!snap || !snap.game) return '';
     const players = snap.players || [];
-    const totalQuestions = snap.totalQuestions || 12;
+    const  = snap.totalQuestions || 13;
     return `
       <div class="metrics-bar">
         <div class="metric-cyan">Q: ${escapeHtml(snap.game.currentRound)} / ${totalQuestions}</div>
