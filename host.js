@@ -16,7 +16,8 @@
     finishedRendered: false,
     muted: false,
     loading: false,
-    snapshotQueued: false
+    snapshotQueued: false,
+    previousScores: {} // Stores pre-round scores for animated count-ups
   };
 
   const els = {
@@ -56,7 +57,7 @@
     els.stage.innerHTML = `
       <div class="grid host-grid">
         <section class="card join-card">
-          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--cyan-accent)">All Hands</h1>
+          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--crimson-accent)">All Hands</h1>
           <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live.</p>
           <form id="roomForm">
             <label class="subtle" for="roomPinInput">Game PIN</label>
@@ -246,8 +247,9 @@
     }
   }
 
+  // Returns empty string to prevent duplicate header if host.html already includes topbar
   function renderHeader() {
-    '';
+    return '';
   }
 
   // Question Metrics Bar (ONLY rendered during live questions / results)
@@ -255,7 +257,7 @@
     const snap = state.snapshot;
     if (!snap || !snap.game) return '';
     const players = snap.players || [];
-    const  = snap.totalQuestions || 13;
+    const totalQuestions = snap.totalQuestions || 10;
     return `
       <div class="metrics-bar">
         <div class="metric-cyan">Q: ${escapeHtml(snap.game.currentRound)} / ${totalQuestions}</div>
@@ -286,13 +288,13 @@
   function renderLobby() {
     const players = state.snapshot.players || [];
     const playUrl = playerUrl();
-    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1fYqyPdvncX8qrOrFT34X61uooLTeVbWD&sz=s1000';
+    const qrImageUrl = 'https://drive.google.com/thumbnail?id=1KRcIO7_UqpbC0q-ZFmYQPp9L-uzWlQbv&sz=s1000';
 
     els.stage.innerHTML = `
       ${renderHeader()}
       <div class="grid host-grid" style="margin-top:20px">
         <section class="card pin-box">
-          <div style="text-transform:uppercase;color:var(--cyan-accent);font-weight:800;">Game PIN</div>
+          <div style="text-transform:uppercase;color:var(--crimson-accent);font-weight:800;">Game PIN</div>
           <div class="pin">${escapeHtml(state.snapshot.game.gamePin)}</div>
           <div class="qr-wrap">
             <img src="${qrImageUrl}" alt="Join Game QR Code" />
@@ -304,7 +306,7 @@
           </div>
         </section>
         <aside class="card">
-          <h2 style="margin-top:0;color:#2b243d;">Players (${players.length})</h2>
+          <h2 style="margin-top:0;color:var(--header-bg);">Players (${players.length})</h2>
           <div class="players-grid">${players.map(playerChip).join('') || '<p class="subtle">Waiting for players...</p>'}</div>
         </aside>
       </div>`;
@@ -320,8 +322,8 @@
       <section class="card" style="text-align:center;min-height:55vh;display:grid;place-items:center">
         <div>
           <span class="status-pill"><span class="status-dot"></span>GET READY</span>
-          <h1 class="display" style="margin-top:16px;color:#2b243d">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
-          <div id="precountdownNumber" class="pin bounce-anim" style="font-size:clamp(100px,18vw,240px);color:var(--cyan-accent)">3</div>
+          <h1 class="display" style="margin-top:16px;color:var(--header-bg)">Question ${escapeHtml(state.snapshot.game.currentRound)}</h1>
+          <div id="precountdownNumber" class="pin bounce-anim" style="font-size:clamp(100px,18vw,240px);color:var(--crimson-accent)">3</div>
           <p class="subtle" style="font-size:20px;">${players.length} players connected</p>
           <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
             <button class="btn secondary" data-action="advance">Start Now</button>
@@ -363,7 +365,7 @@
       <div class="flex flex-col md:flex-row gap-8 items-center justify-center w-full" style="display:flex;gap:24px;align-items:center;justify-content:center;margin-bottom:20px;">
         <div class="timer-container">
           <div id="timerCircle" class="timer-circle">
-            <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:#2b243d">${Number(snap.game.questionTimerLimit || 20)}</span>
+            <span id="timerNumber" class="display" style="font-size:52px;line-height:1;color:var(--header-bg)">${Number(snap.game.questionTimerLimit || 20)}</span>
             <span style="font-size:11px;letter-spacing:0.1em;margin-top:4px;color:var(--muted);font-weight:700">SECONDS</span>
           </div>
         </div>
@@ -373,7 +375,7 @@
       
       ${revealed && (q.explanation || q.funFact) ? `<div class="notice" style="margin-top:20px;"><strong>Explanation:</strong> ${escapeHtml(q.explanation || q.funFact)}</div>` : ''}
 
-      <div style="margin-top:24px;display:flex;justify-content:center">
+      <div style="margin-top:24px;display:flex;justify-content:center;flex-direction:column;align-items:center">
         ${revealed ? distribution : ''}
         ${revealed ? '<button class="btn big" style="margin-top:16px" data-action="advance">Leaderboard</button>' : '<button class="btn danger" style="margin-top:16px" data-action="reveal">Skip / Reveal</button>'}
       </div>`;
@@ -389,24 +391,31 @@
       return `<div class="dist-row ${isCorrect ? 'correct-row' : ''}" style="width:100%">
         <div class="answer-card ${letter}" style="min-height:36px;padding:4px;border-radius:8px;display:grid;place-items:center;box-shadow:none;"><div class="choice-tag" style="width:28px;height:28px;font-size:14px">${letter}</div></div>
         <div class="dist-bar"><div class="dist-fill ${letter}" style="--w:${width}%"></div></div>
-        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--cyan-accent);' : ''}">${count}</div>
+        <div style="text-align:right; font-weight:800; ${isCorrect ? 'color:var(--crimson-accent);' : ''}">${count}</div>
       </div>`;
     }).join('');
   }
 
   function renderLeaderboard(finalMode) {
     const rows = state.snapshot.leaderboard || [];
+    
     els.stage.innerHTML = `
       ${renderHeader()}
       ${renderMetricsBar()}
       <section class="card" style="max-width:800px;margin:0 auto">
-        <h1 class="display" style="text-align:center;margin-bottom:20px;color:#2b243d">Leaderboard</h1>
-        ${rows.map(scoreRow).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+        <h1 class="display" style="text-align:center;margin-bottom:20px;color:var(--text-primary)">Leaderboard</h1>
+        <div id="leaderboardList">
+          ${rows.map((p, i) => scoreRow(p, i)).join('') || '<p class="subtle" style="text-align:center;">No scores yet.</p>'}
+        </div>
         <div style="display:flex;justify-content:center;margin-top:24px">
           <button class="btn big" data-action="advance">${finalMode ? 'Finish' : 'Next Question'}</button>
         </div>
       </section>`;
+
     bindActions();
+    
+    // Animate score count-up
+    setTimeout(animateScoreIncrements, 100);
   }
 
   function renderFinished() {
@@ -418,14 +427,14 @@
         ${renderHeader()}
         ${renderMetricsBar()}
         <section class="card" style="max-width:850px;margin:0 auto;text-align:center">
-          <h1 class="display" style="color:#2b243d">Final Podium</h1>
+          <h1 class="display" style="color:var(--text-primary)">Final Podium</h1>
           <div class="podium">
             ${podiumPlace(podium[0], '2', 'second', 'pod-2')}
             ${podiumPlace(podium[1], '1', 'first', 'pod-1')}
             ${podiumPlace(podium[2], '3', 'third', 'pod-3')}
           </div>
-          <h2 style="margin-top:32px; color:#2b243d;">Top 10</h2>
-          <div style="text-align:left">${rows.map(scoreRow).join('') || '<p class="subtle">No players.</p>'}</div>
+          <h2 style="margin-top:32px; color:var(--text-primary);">Top 10</h2>
+          <div style="text-align:left">${rows.map((p, i) => scoreRow(p, i)).join('') || '<p class="subtle">No players.</p>'}</div>
           <div style="display:flex;justify-content:center;margin-top:28px">
             <button class="btn danger" data-action="reset">Reset Arena</button>
           </div>
@@ -509,6 +518,7 @@
         state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
       } else if (status === 'FINISHED') {
         state.audio.playSfx(configValue('ApplauseSFX', 'Music/u_xg7ssi08yr-crowd-cheering-379666.mp3'));
+        // Non-looping podium music (false)
         state.audio.playMusic(configValue('PodiumMusic', 'Music/Drum Roll (Ending Celebration) - Sound Effect _ ProSounds.mp3'), false);
       } else if (status === 'LOBBY') {
         playMusicForStatus();
@@ -544,6 +554,7 @@
       return state.audio.playMusic(configValue('LeaderboardMusic', 'Music/leaderboard-theme.mp3'), false);
     }
     if (status === 'FINISHED') {
+      // Non-looping podium music (false)
       return state.audio.playMusic(configValue('PodiumMusic', 'Music/Drum Roll (Ending Celebration) - Sound Effect _ ProSounds.mp3'), false);
     }
   }
@@ -585,8 +596,73 @@
   // Truncate player nickname to max 6 characters
   function cleanNick(name) { return String(name || '').slice(0, 6); }
 
-  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2b243d')}">${escapeHtml(cleanNick(p.nickname).slice(0,1).toUpperCase())}</span><span>${escapeHtml(cleanNick(p.nickname))}</span></div>`; }
-  function scoreRow(p, i) { return `<div class="scoreboard-row"><div class="rank">#${p.rank || i + 1}</div><div class="name">${escapeHtml(cleanNick(p.nickname))}</div><div class="score">${Number(p.totalScore || 0).toLocaleString()} pt</div></div>`; }
+  function streakBadge(streak) {
+    const streakCount = Number(streak || 0);
+    if (streakCount < 2) return '';
+    return `<span class="streak-badge" title="${streakCount} answers in a row!">🔥 ${streakCount}</span>`;
+  }
+
+  function playerChip(p) { return `<div class="player-chip"><span class="avatar" style="background:${escapeAttr(p.avatarColor || '#2d1215')}">${escapeHtml(cleanNick(p.nickname).slice(0,1).toUpperCase())}</span><span>${escapeHtml(cleanNick(p.nickname))}</span></div>`; }
+
+  function scoreRow(p, i) {
+    const newScore = Number(p.totalScore || 0);
+    const oldScore = state.previousScores[p.playerId] !== undefined 
+      ? state.previousScores[p.playerId] 
+      : newScore;
+      
+    const cleanNickname = cleanNick(p.nickname);
+    const streakHtml = streakBadge(p.streak || p.currentStreak);
+
+    return `
+      <div class="scoreboard-row" style="--i: ${i}">
+        <div class="rank">#${p.rank || i + 1}</div>
+        <div class="name" style="display:flex;align-items:center;">
+          <span>${escapeHtml(cleanNickname)}</span>
+          ${streakHtml}
+        </div>
+        <div class="score score-pop animate-score" 
+             data-start="${oldScore}" 
+             data-target="${newScore}"
+             data-player-id="${p.playerId}">
+          ${oldScore.toLocaleString()} pt
+        </div>
+      </div>`;
+  }
+
+  function animateScoreIncrements() {
+    document.querySelectorAll('.animate-score').forEach(el => {
+      const start = parseInt(el.getAttribute('data-start') || '0', 10);
+      const target = parseInt(el.getAttribute('data-target') || '0', 10);
+      const playerId = el.getAttribute('data-player-id');
+      
+      if (playerId) state.previousScores[playerId] = target;
+
+      if (start === target) {
+        el.textContent = `${target.toLocaleString()} pt`;
+        return;
+      }
+
+      const duration = 1200;
+      const startTime = performance.now();
+
+      function updateNumber(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+        const current = Math.floor(start + (target - start) * easedProgress);
+
+        el.textContent = `${current.toLocaleString()} pt`;
+
+        if (progress < 1) {
+          requestAnimationFrame(updateNumber);
+        } else {
+          el.textContent = `${target.toLocaleString()} pt`;
+        }
+      }
+
+      requestAnimationFrame(updateNumber);
+    });
+  }
   
   function podiumPlace(p, rankNum, cls, id) { 
     const revealStyling = id ? 'opacity:0; transform:translateY(50px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);' : '';
@@ -601,7 +677,7 @@
 
   function fireConfetti() {
     if (!window.confetti) return;
-    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#2b243d', '#00dbe7', '#e60039', '#e0a900'] });
+    confetti({ particleCount: 180, spread: 90, origin: { y: .75 }, colors: ['#9e1b1e', '#d4982a', '#eac875', '#2d1215'] });
   }
 
   function showError(message) { if (els.error) { els.error.textContent = String(message || 'Error occurred.'); els.error.classList.remove('hidden'); } }
