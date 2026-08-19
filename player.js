@@ -67,7 +67,7 @@
   function renderJoin() {
     stage.innerHTML = `
       <div class="card join-card">
-        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--cyan-accent)">OM Sync</h1>
+        <h1 class="display" style="font-size:36px;margin:0 0 8px;text-align:center;color:var(--cyan-accent)">All hands</h1>
         <p class="subtle" style="text-align:center;margin-bottom:20px">Enter Game PIN and nickname (max 6 letters).</p>
         <form id="joinForm">
           <label class="subtle" for="pinInput">Game PIN</label>
