@@ -56,7 +56,7 @@
     els.stage.innerHTML = `
       <div class="grid host-grid">
         <section class="card join-card">
-          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--cyan-accent)">OM Sync</h1>
+          <h1 class="display" style="font-size:38px;margin:0 0 10px;color:var(--cyan-accent)">All Hands</h1>
           <p class="subtle" style="margin-bottom:18px">Enter Game PIN and Host Token to connect live.</p>
           <form id="roomForm">
             <label class="subtle" for="roomPinInput">Game PIN</label>
